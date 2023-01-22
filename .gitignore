@@ -34,3 +34,10 @@
 # Builds
 Debug/
 build-Debug/
+
+
+# Custom
+.codelite
+*.workspace
+build-*
+
