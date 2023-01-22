@@ -31,17 +31,4 @@
 *.out
 *.app
 
-# CodeLite IDE
-*.mk
-*.txt
-*.project
-*.workspace
-compile_commands.json
-Makefile
-.codelite/
-*.session
-*.tags
-tags
 
-# Builds
-Debug/

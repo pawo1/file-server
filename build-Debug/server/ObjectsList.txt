@@ -1,0 +1,1 @@
+../build-Debug/server/FileInfo.cpp.o ../build-Debug/server/main.cpp.o
