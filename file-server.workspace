@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Workspace Name="file-server" Database="" Version="10000">
   <Project Name="server" Path="server/server.project" Active="Yes"/>
-  <Project Name="client" Path="client/client.project"/>
+  <Project Name="client" Path="client/client.project" Active="No"/>
+  <Project Name="client-mockup" Path="client-mockup/client-mockup.project" Active="No"/>
+  <Project Name="server-mockup" Path="server-mockup/server-mockup.project" Active="No"/>
   <BuildMatrix>
     <WorkspaceConfiguration Name="Debug" Selected="yes">
       <Environment/>
       <Project Name="client" ConfigName="Debug"/>
       <Project Name="server" ConfigName="Debug"/>
+      <Project Name="client-mockup" ConfigName="Debug"/>
+      <Project Name="server-mockup" ConfigName="Debug"/>
     </WorkspaceConfiguration>
     <WorkspaceConfiguration Name="Release" Selected="yes">
       <Environment/>
       <Project Name="server" ConfigName="Release"/>
       <Project Name="client" ConfigName="Release"/>
+      <Project Name="client-mockup" ConfigName="Release"/>
+      <Project Name="server-mockup" ConfigName="Release"/>
     </WorkspaceConfiguration>
   </BuildMatrix>
 </CodeLite_Workspace>

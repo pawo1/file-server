@@ -4,13 +4,32 @@
 #include <filesystem>
 #include <sstream>
 #include <vector>
+#include <cstdlib>
+#include <unistd.h>
+
+#include <sys/epoll.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <error.h>
+#include <netdb.h>
+
+#include <unordered_set>
+#include <signal.h>
 
 #include <linux/inotify.h>
 #include <nlohmann/json.hpp>
 #include <openssl/md5.h>
+#include <sys/socket.h>
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
+
+//globals 
+int servFd;
+
+//declarations
+void ctrl_c();
 
 std::string getBasename(std::string filename) {
     std::string::size_type pos = filename.rfind("/");
@@ -65,11 +84,52 @@ json parseDirectoryToTree(std::string path) {
     return tree;
 }
 
+json findNodeByPath(std::string path) {
+    json node;
+    std::istringstream f(path);
+    std::string part;
+    while(getline(f, part, '/')) {
+        std::cout << part << std::endl;
+        
+    }
+    
+    return node; 
+}
+
 int main(int argc, char **argv)
 {
     json mockup_configuration = json::parse(R"({"host": "localhost", "port": 80, "path":"/home/pawo/Dokumenty/server-folder/"})");
-    std::cout << mockup_configuration["host"] << ":" << mockup_configuration["port"] << std::endl;
-    std::cout << mockup_configuration["path"] << std::endl;
-    std::cout << parseDirectoryToTree(mockup_configuration["path"]).dump(1) << std::endl;
+    
+    std::string host = mockup_configuration["host"];
+    //std::string str_port = mockup_configuration["port"];
+    std::string path =  mockup_configuration["path"];
+    uint16_t port = mockup_configuration["port"]; 
+    
+    std::cout << host << ":" << port << std::endl;
+    std::cout << path << std::endl;
+    
+    servFd = socket(AF_INET, SOCK_STREAM, 0);
+    if(servFd == -1) error(1, errno, "socket failed");
+    
+    if(!fs::is_directory(mockup_configuration["path"])) {
+        std::cout << "Wrong path: " << mockup_configuration["path"] << std::endl;
+        return 1;
+    }
+    
+    findNodeByPath("fil1");
+    findNodeByPath("subdir/subsubdir/hello_world");
+    
+    json fileSystemTree = parseDirectoryToTree(mockup_configuration["path"]);
+    
+    ctrl_c();
     return 0;
+}
+
+
+void ctrl_c() {
+    //for(Client * client : clients)
+    //    delete client;
+    close(servFd);
+    printf("Closing server\n");
+    exit(0);
 }

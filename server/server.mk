@@ -14,7 +14,7 @@ CurrentFileName        :=
 CurrentFilePath        :=
 CurrentFileFullPath    :=
 User                   :=pawo
-Date                   :=21/01/23
+Date                   :=23/01/23
 CodeLitePath           :=/home/pawo/.codelite
 LinkerName             :=/usr/bin/g++
 SharedObjectLinkerName :=/usr/bin/g++ -shared -fPIC
@@ -60,7 +60,7 @@ AS       := /usr/bin/as
 ## User defined environment variables
 ##
 CodeLiteDir:=/usr/share/codelite
-Objects0=../build-$(ConfigurationName)/server/FileInfo.cpp$(ObjectSuffix) ../build-$(ConfigurationName)/server/main.cpp$(ObjectSuffix) 
+Objects0=../build-$(ConfigurationName)/server/main.cpp$(ObjectSuffix) 
 
 
 
@@ -91,14 +91,6 @@ PreBuild:
 ##
 ## Objects
 ##
-../build-$(ConfigurationName)/server/FileInfo.cpp$(ObjectSuffix): FileInfo.cpp ../build-$(ConfigurationName)/server/FileInfo.cpp$(DependSuffix)
-	$(CXX) $(IncludePCH) $(SourceSwitch) "/home/pawo/file-server/server/FileInfo.cpp" $(CXXFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/FileInfo.cpp$(ObjectSuffix) $(IncludePath)
-../build-$(ConfigurationName)/server/FileInfo.cpp$(DependSuffix): FileInfo.cpp
-	@$(CXX) $(CXXFLAGS) $(IncludePCH) $(IncludePath) -MG -MP -MT../build-$(ConfigurationName)/server/FileInfo.cpp$(ObjectSuffix) -MF../build-$(ConfigurationName)/server/FileInfo.cpp$(DependSuffix) -MM FileInfo.cpp
-
-../build-$(ConfigurationName)/server/FileInfo.cpp$(PreprocessSuffix): FileInfo.cpp
-	$(CXX) $(CXXFLAGS) $(IncludePCH) $(IncludePath) $(PreprocessOnlySwitch) $(OutputSwitch) ../build-$(ConfigurationName)/server/FileInfo.cpp$(PreprocessSuffix) FileInfo.cpp
-
 ../build-$(ConfigurationName)/server/main.cpp$(ObjectSuffix): main.cpp ../build-$(ConfigurationName)/server/main.cpp$(DependSuffix)
 	$(CXX) $(IncludePCH) $(SourceSwitch) "/home/pawo/file-server/server/main.cpp" $(CXXFLAGS) $(ObjectSwitch)$(IntermediateDirectory)/main.cpp$(ObjectSuffix) $(IncludePath)
 ../build-$(ConfigurationName)/server/main.cpp$(DependSuffix): main.cpp
