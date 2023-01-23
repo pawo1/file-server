@@ -62,7 +62,9 @@ std::string calcMD5Sum(std::string filename) {
 
 json parseDirectoryToTree(std::string path) {
     json tree;
+    if(path.back() != '/') path += '/';
     tree["node"] = "directory";
+    tree["path"] = path;
     json children;
     
     
@@ -84,13 +86,25 @@ json parseDirectoryToTree(std::string path) {
     return tree;
 }
 
-json findNodeByPath(std::string path) {
-    json node;
+json findNodeByPath(json tree, std::string path) {
+    json node = tree;
+    json null;
     std::istringstream f(path);
     std::string part;
+    std::string pwd = tree["path"];
     while(getline(f, part, '/')) {
-        std::cout << part << std::endl;
-        
+        bool found = false;
+        for(auto it: node["children"]) {
+            if(it["path"] == (pwd + part) || it["path"] == (pwd + part + '/')) {
+                node = it;
+                found = true;
+                if(it["node"] == "directory") {
+                    pwd = it["path"];
+                }
+                break;
+            }
+        }
+        if(!found) return null;
     }
     
     return node; 
@@ -115,11 +129,12 @@ int main(int argc, char **argv)
         std::cout << "Wrong path: " << mockup_configuration["path"] << std::endl;
         return 1;
     }
-    
-    findNodeByPath("fil1");
-    findNodeByPath("subdir/subsubdir/hello_world");
-    
     json fileSystemTree = parseDirectoryToTree(mockup_configuration["path"]);
+    
+    std::cout << findNodeByPath(fileSystemTree, "fil1").dump(2) << std::endl;
+    std::cout << findNodeByPath(fileSystemTree, "subdir/subsubdir/hello_world").dump(2) << std::endl;
+    std::cout << findNodeByPath(fileSystemTree, "none").empty() << std::endl;
+    
     
     ctrl_c();
     return 0;
