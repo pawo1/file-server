@@ -6,6 +6,7 @@
 //#include <sys/time.h>
 //#include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <string>
 
 #include <errno.h>
@@ -15,6 +16,8 @@
 #include <cstring>
 
 #include <sys/epoll.h>
+#include <queue>
+#include <map>
 
 
 
@@ -26,7 +29,26 @@
 
 int inotfd = 0;
 
-void ctrl_c(int){  // TODO: custom
+std::map<int, std::string> inotify_dirs;
+
+int add_notify_dir(const char * name){
+    int wd = inotify_add_watch(inotfd, name, IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_DELETE|IN_CREATE);
+    if (wd < 0) {
+        perror ("inotify_add_watch");
+        return 1;
+    }
+    
+    inotify_dirs[wd] = name;
+    
+    return wd;
+}
+
+std::string get_inotify_fullpath(int wd, std::string name){
+    return inotify_dirs[wd] + "/" + name;
+}
+
+
+void ctrl_c(int){
     close(inotfd);
     printf("Closing client\n");
     exit(0);
@@ -34,18 +56,18 @@ void ctrl_c(int){  // TODO: custom
 
 void operation_create(std::string name, int wd) {
     
-    std::cout << "\t=> ("<<wd<<")CREATE: " << name << std::endl;
+    std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
 void operation_delete(std::string name, int wd) {
     
-    std::cout << "\t=> ("<<wd<<")DELETE: " << name << std::endl;
+    std::cout << "\t=> ("<<wd<<")DELETE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
-void operation_rename(std::string name1, std::string name2, int wd) {
-    // todo
-    std::cout << "\t=> ("<<wd<<")RENAME: " << name1 << " -> " << name2 << std::endl;
-}
+//void operation_rename(std::string name1, std::string name2, int wd) {
+//    // todo
+//    std::cout << "\t=> ("<<wd<<")RENAME: " << inotify_dirs[wd] << "/" << name1 << " -> " << << inotify_dirs[wd] << "/" << name2 << std::endl;
+//}
 
 struct Handler {
     virtual int handleEvent(uint32_t event) = 0;
@@ -185,18 +207,69 @@ struct Inotify :  Handler {
 };
 
 
+ssize_t readData(int fd, char * buffer, ssize_t buffsize){
+    auto ret = read(fd, buffer, buffsize);
+    if(ret==-1) error(1,errno, "read failed on descriptor %d", fd);
+    return ret;
+}
+
+void writeData(int fd, char * buffer, ssize_t count){
+    auto ret = write(fd, buffer, count);
+    if(ret==-1) error(1, errno, "write failed on descriptor %d", fd);
+    if(ret!=count) error(0, errno, "wrote less than requested to descriptor %d (%ld/%ld)", fd, count, ret);
+}
+
+int readAndSendFile(const char* pathname, int sock){
+    int fd = open(pathname, O_RDONLY|O_NOATIME);
+    if (fd < 0){
+        perror("Otwieranie pliku");
+        return 1;
+    }
+    
+    int fd2 = open("/home/pmarc/test/kalafior2.png", O_WRONLY|O_CREAT|O_TRUNC, 0755);
+    
+    long size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
+    lseek(fd, 0, SEEK_SET);
+    
+    long bytesRead = 0;
+    while(1){
+        // read from socket, write to stdout
+        ssize_t bufsize = 255, received;
+        char buffer[bufsize];
+        received = readData(fd, buffer, bufsize);
+        if(received <= 0){
+            //shutdown(sock, SHUT_RDWR);
+            close(fd);
+//            exit(0);
+            break;
+        }
+        bytesRead += received;
+        writeData(fd2, buffer, received);
+        //printf("%s", buffer);
+    }
+    
+    printf("Expected size: %ld, actual: %ld\n", size, bytesRead);
+    
+    return 0;
+}
+
+
 int main(int argc, char **argv)
 {
-	printf("hello world\n");
+	printf("Czytanie pliku\n");
+    
+    
+    readAndSendFile("/home/pmarc/test/kalafior.png", 2);
+    
+	printf("\nOdczytano plik\n");
     
     
     inotfd = inotify_init();
     if (inotfd < 0)
         perror ("inotify_init");
-    
-    int wd = inotify_add_watch(inotfd, "/home/pmarc/test", IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_DELETE|IN_CREATE);
-    if (wd < 0)
-        perror ("inotify_add_watch");
+
+    add_notify_dir("/home/pmarc/test");
+    add_notify_dir("/home/pmarc/test/abcdef");
     
     int epollfd = epoll_create1(0);
     
