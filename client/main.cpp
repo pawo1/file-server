@@ -3,8 +3,6 @@
 #include <sys/inotify.h>
 #include <sys/select.h>
 #include <iostream>
-//#include <sys/time.h>
-//#include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string>
@@ -32,6 +30,9 @@
 #include <chrono>
 #include <sys/stat.h>
 
+#include "../shared_lib/jsonTree.h"
+#include "../shared_lib/utils.h"
+
 /* size of the event structure, not counting name */
 #define EVENT_SIZE  (sizeof (struct inotify_event))
 
@@ -39,6 +40,7 @@
 #define BUF_LEN        (1024 * (EVENT_SIZE + 16))
 
 using namespace std::chrono_literals;
+using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 std::string root;
@@ -63,39 +65,17 @@ std::string get_inotify_fullpath(int wd, std::string name);
 
 int readAndSendFile(std::string pathname);
 
-int sendDeleteFile(std::string pathname);
-
 void init_notify(std::string root);
 
-std::string calcMD5Sum(std::string filename) {
-    
-    std::ifstream file(filename, std::ifstream::binary);
-    MD5_CTX md5Context;
-    MD5_Init(&md5Context);
-    char buf[1024 * 16];
-    while (file.good()) {
-        file.read(buf, sizeof(buf));
-        MD5_Update(&md5Context, buf, file.gcount());
-    }
-    unsigned char result[MD5_DIGEST_LENGTH];
-    MD5_Final(result, &md5Context);
-    
-    std::stringstream md5string;
-    md5string << std::hex << std::uppercase << std::setfill('0');
-    for (const auto &byte: result)
-        md5string << std::setw(2) << (int)byte;
 
-    return md5string.str();
+int add_filename(char *buffer, std::string name){
+    strcpy(buffer, name.c_str());
+    return name.size() + sizeof(char);
 }
 
-void notify_server(std::string name, char operation){
-
-    size_t ui32_size = sizeof(uint32_t);
-    size_t char_size = sizeof(char);
+int add_timestamp(char *buffer, std::string name, char operation){
     size_t seco_size = sizeof(int64_t);
-
     int64_t timestamp = 0;
-
     if (operation != 'D') {
         //  timestamp = std::chrono::duration_cast<std::chrono::seconds>(fs::last_write_time(name).time_since_epoch()).count();
         // timestamp = std::chrono::duration_cast<std::chrono::seconds>(fs::last_write_time(name).time_since_epoch()).count() + 6437750400;
@@ -108,42 +88,155 @@ void notify_server(std::string name, char operation){
         timestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
     }
 
+    memcpy(buffer, &timestamp, seco_size);
 
-    uint32_t size = ui32_size + 2 * char_size + name.size()  + seco_size;
+    return seco_size;
+}
+
+int get_file_descriptor(std::string name, long *size){
+    
+    int fd = open(name.c_str(), O_RDONLY|O_NOATIME);
+    if (fd < 0){
+        perror("Otwieranie pliku");
+        return fd;
+    }
+
+    *size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
+    lseek(fd, 0, SEEK_SET);
+
+    return fd;
+}
+
+int add_md5(char *buffer, std::string name){
+    std::string md5 = calcMD5Sum(name);
+    strcpy(buffer, md5.c_str());
+    return md5.size() + sizeof(char);
+}
+
+std::string get_json(){
+    json json_object = parseDirectoryToTree(root);
+    return json_object.dump();
+}
+
+int send_file_content(int sock, int fd){
+    ssize_t bufsize = 1024, received;
+    char read_buffer[bufsize];
+    
+    long bytesRead = 0;
+    while(1){
+        received = readData(fd, read_buffer, bufsize);
+        if(received <= 0){
+            close(fd);
+            break;
+        }
+        bytesRead += received;
+        writeData(sock, read_buffer, received);
+    }
+
+    return bytesRead;
+}
+
+int send_string_content(int sock, std::string string_content){
+
+    const ssize_t bufsize = 1024;
+
+    // gwartantowane \0 na końcu od C++11
+    char *str_buffer = string_content.data();
+    long size = string_content.size() + sizeof(char);
+
+    long bytesRead = 0;
+    long offset = 0;
+    while(1){
+        bytesRead = std::min(bufsize, size - offset);
+        if (bytesRead <= 0){
+            break;
+        }
+        writeData(sock, str_buffer+offset, bytesRead);
+        offset += bytesRead;
+    }
+
+    return offset;
+}
+
+void send_to_server(std::string name, char operation){
+
+    const size_t ui32_size = sizeof(uint32_t);
+    const size_t char_size = sizeof(char);
+
+    long length = 0;
+
+    int fd = -1;
+    std::string json_content = "";
 
     ssize_t bufsize = 1024;
     char buffer[bufsize];
 
-    size_t offset = 0;
-    memcpy(buffer+offset, (char*)&size, ui32_size);
-    offset += ui32_size;
+    uint32_t offset = ui32_size;
+    uint32_t size_to_send = ui32_size;
 
+    // add operation char
     memcpy(buffer+offset, &operation, char_size);
     offset += char_size;
 
-    strcpy(buffer+offset, name.c_str());
-    offset += name.size() + char_size;
-
-    memcpy(buffer+offset, &timestamp, seco_size);
-    offset += seco_size;
-
-    if (operation == 'C'){
-        std::string md5 = calcMD5Sum(name);
-        size += md5.size() + char_size;
-        strcpy(buffer+offset, md5.c_str());
+    switch (operation)
+    {
+        case 'U':
+            length = add_filename(buffer+offset, name);
+            offset += length;
+            length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
+            length = add_md5(buffer+offset, name);
+            offset += length;
+            size_to_send = offset;
+            break;
+        case 'D':
+            length = add_filename(buffer+offset, name);
+            offset += length;
+            length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
+            size_to_send = offset;
+            break;
+        case 'B':
+            length = add_filename(buffer+offset, name);
+            offset += length;
+            length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
+            size_to_send = offset;
+            // send in the next message
+            fd = get_file_descriptor(name, &length); // opens fd
+            offset += length;
+            break;
+        case 'T':
+            // send in the next message
+            size_to_send = offset;
+            json_content = get_json();
+            offset += json_content.size() + char_size;
+            break;
     }
 
-    printf("SENDING: \"%s\"\n", buffer+ui32_size);
-    writeData(sock, buffer, size);
+    // add message size
+    memcpy(buffer, (char*)&offset, ui32_size);
+
+    // send message without file content
+    writeData(sock, buffer, size_to_send);
+
+    // the next message is now
+    if(fd >= 0){
+        send_file_content(sock, fd); // closes fd
+    }
+    else if(json_content.size() > 0){
+        send_string_content(sock, json_content);
+    }
 }
 
 void operation_create(std::string name, int wd) {
-    notify_server(get_inotify_fullpath(wd, name), 'C');
+    send_to_server(get_inotify_fullpath(wd, name), 'U');
+    // send_to_server(get_inotify_fullpath(wd, name), 'B');   // TODO: ONLY FOR TESTING! 
     std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
 void operation_delete(std::string name, int wd) {
-    notify_server(get_inotify_fullpath(wd, name), 'D');
+    send_to_server(get_inotify_fullpath(wd, name), 'D');
     std::cout << "\t=> ("<<wd<<")DELETE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
@@ -333,6 +426,8 @@ int main(int argc, char **argv)
     // free memory
     freeaddrinfo(resolved);
     
+    printf("Wysyłanie wiadomości do serwera...\n");
+    send_to_server("", 'T');
     
     printf(("Połączenie na %s:%s, oczekiwanie na zmiany w: " + root + "\n").c_str(), argv[1], argv[2] );
     
