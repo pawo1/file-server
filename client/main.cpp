@@ -138,13 +138,11 @@ void notify_server(std::string name, char operation){
 }
 
 void operation_create(std::string name, int wd) {
-    //readAndSendFile(name);
     notify_server(get_inotify_fullpath(wd, name), 'C');
     std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
 void operation_delete(std::string name, int wd) {
-    sendDeleteFile(name);
     notify_server(get_inotify_fullpath(wd, name), 'D');
     std::cout << "\t=> ("<<wd<<")DELETE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
@@ -316,7 +314,11 @@ int main(int argc, char **argv)
     
     
     // Resolve arguments to IPv4 address with a port number
-    addrinfo *resolved, hints={.ai_flags=0, .ai_family=AF_INET, .ai_socktype=SOCK_STREAM};
+    //addrinfo *resolved, hints;
+    addrinfo *resolved;
+    addrinfo hints={.ai_flags=0, .ai_family=AF_INET, .ai_socktype=SOCK_STREAM,
+    .ai_protocol=0, .ai_addrlen=0, .ai_addr=0, .ai_canonname=0, .ai_next=0};
+
     int res = getaddrinfo(argv[1], argv[2], &hints, &resolved);
     if(res || !resolved) error(1, 0, "getaddrinfo: %s", gai_strerror(res));
     
@@ -442,7 +444,7 @@ int readAndSendFile(std::string pathname){
     lseek(fd, 0, SEEK_SET);
     
     strcpy(buffer, "B");
-    char * const ptrSize = reinterpret_cast<char * const>(&size);
+    char * ptrSize = reinterpret_cast<char *>(&size);
     memcpy(buffer+1, ptrSize, sizeof(uint32_t));
     
     writeData(sock, buffer, (sizeof(uint32_t) + 1));
@@ -465,29 +467,5 @@ int readAndSendFile(std::string pathname){
     
     printf("Expected size: %d, actual: %ld\n", size, bytesRead);
     
-    return 0;
-}
-
-
-int sendDeleteFile(std::string pathname){
-    // ssize_t bufsize = 1024, received;
-    // char buffer[bufsize];
-    
-    // strcpy(buffer, "N");
-    
-    // writeData(sock, buffer, 1);
-    
-    // uint32_t size = pathname.size();
-    // writeData(sock, (char*)&size, sizeof(uint32_t));
-    
-    
-    // size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
-    // lseek(fd, 0, SEEK_SET);
-    
-    // strcpy(buffer, "B");
-    // char * const ptrSize = reinterpret_cast<char * const>(&size);
-    // memcpy(buffer+1, ptrSize, sizeof(uint32_t));
-    
-    // writeData(sock, buffer, (sizeof(uint32_t) + 1));
     return 0;
 }

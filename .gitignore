@@ -38,6 +38,12 @@
 Debug/
 build-Debug/
 
+client/main
+server/main
+client/client.txt
+server-mockup/server-mockup.txt
+client-mockup/client-mockup.txt
+
 
 # Custom
 .codelite
