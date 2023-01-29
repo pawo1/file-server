@@ -12,12 +12,21 @@
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-inline json parseDirectoryToTree(std::string path) {
+inline json parseDirectoryToTree(std::string path, std::string root="") {
     json tree;
+
 
     if(path.back() != '/') path += '/';
     tree["node"] = "directory";
-    tree["path"] = path;
+    if(root == "") {
+        tree["path"] =  path;
+        root = path;
+    } else {
+        tree["path"] = fs::relative(path, root).string();
+    }
+   
+    
+
     json children;
     
     for(const auto & entry : fs::directory_iterator(path)) {
@@ -27,12 +36,12 @@ inline json parseDirectoryToTree(std::string path) {
             stat(entry.path().c_str(), &attr);
 
             record["node"] = "file";
-            record["path"] = entry.path();
+            record["path"] = fs::relative(entry.path(), root);
             record["MD5"] = calcMD5Sum(entry.path());
             record["write_time"] = (int64_t)attr.st_mtime;
             children.push_back(record);
         } else if(fs::is_directory(entry.path())) {
-            children.push_back(parseDirectoryToTree(entry.path()));
+            children.push_back(parseDirectoryToTree(entry.path(), root ));
         }
 
     }
