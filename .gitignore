@@ -1,6 +1,5 @@
 #VSC
 .vscode/
-server/main
 
 # Prerequisites
 *.d

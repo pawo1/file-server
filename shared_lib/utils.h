@@ -34,4 +34,10 @@ inline std::string calcMD5Sum(std::string filename) {
     return md5string.str();
 }
 
+inline bool findNullTerminator(char *str, int len) {
+    for(int i = 0; i < len; ++i) {
+        if(str[i] == '\0') return true;
+    }
+    return false;
+}
 #endif // UTILS_H
