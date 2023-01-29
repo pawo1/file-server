@@ -24,7 +24,13 @@
 #include <netdb.h>
 #include <math.h>
 
+#include <openssl/md5.h>
 
+#include <fstream>
+#include <filesystem>
+#include <iomanip>
+#include <chrono>
+#include <sys/stat.h>
 
 /* size of the event structure, not counting name */
 #define EVENT_SIZE  (sizeof (struct inotify_event))
@@ -32,120 +38,114 @@
 /* reasonable guess as to size of 1024 events */
 #define BUF_LEN        (1024 * (EVENT_SIZE + 16))
 
-
+using namespace std::chrono_literals;
+namespace fs = std::filesystem;
 
 std::string root;
 int sock;
 int inotfd = 0;
 
+
+std::string last_name = "";
+uint32_t cookie = 0;
+int last_wd = 0;
+
 std::map<int, std::string> inotify_dirs;
 
-int add_notify_dir(std::string name){
-    int wd = inotify_add_watch(inotfd, name.c_str(), IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_DELETE|IN_CREATE);
-    if (wd < 0) {
-        perror ("inotify_add_watch");
-        return 1;
+void ctrl_c(int);
+ssize_t readData(int, char * , ssize_t );
+void writeData(int, char * , ssize_t );
+
+
+int add_notify_dir(std::string name);
+
+std::string get_inotify_fullpath(int wd, std::string name);
+
+int readAndSendFile(std::string pathname);
+
+int sendDeleteFile(std::string pathname);
+
+void init_notify(std::string root);
+
+std::string calcMD5Sum(std::string filename) {
+    
+    std::ifstream file(filename, std::ifstream::binary);
+    MD5_CTX md5Context;
+    MD5_Init(&md5Context);
+    char buf[1024 * 16];
+    while (file.good()) {
+        file.read(buf, sizeof(buf));
+        MD5_Update(&md5Context, buf, file.gcount());
     }
+    unsigned char result[MD5_DIGEST_LENGTH];
+    MD5_Final(result, &md5Context);
     
-    inotify_dirs[wd] = name;
-    
-    printf("added inotify wd: %d to %s\n", wd, name.c_str());
-    
-    return wd;
+    std::stringstream md5string;
+    md5string << std::hex << std::uppercase << std::setfill('0');
+    for (const auto &byte: result)
+        md5string << std::setw(2) << (int)byte;
+
+    return md5string.str();
 }
 
-std::string get_inotify_fullpath(int wd, std::string name){
-    return inotify_dirs[wd] + "/" + name;
-}
+void notify_server(std::string name, char operation){
 
+    size_t ui32_size = sizeof(uint32_t);
+    size_t char_size = sizeof(char);
+    size_t seco_size = sizeof(int64_t);
 
-void ctrl_c(int){
-    close(inotfd);
-    printf("\nClosing client\n");
-    exit(0);
-}
+    int64_t timestamp = 0;
 
-ssize_t readData(int fd, char * buffer, ssize_t buffsize){
-    auto ret = read(fd, buffer, buffsize);
-    if(ret==-1) error(1,errno, "read failed on descriptor %d", fd);
-    return ret;
-}
-
-void writeData(int fd, char * buffer, ssize_t count){
-    auto ret = write(fd, buffer, count);
-    if(ret==-1) error(1, errno, "write failed on descriptor %d", fd);
-    if(ret!=count) error(0, errno, "wrote less than requested to descriptor %d (%ld/%ld)", fd, count, ret);
-}
-
-int readAndSendFile(std::string pathname){
-    int fd = open(pathname.c_str(), O_RDONLY|O_NOATIME);
-    if (fd < 0){
-        perror("Otwieranie pliku");
-        return 1;
+    if (operation != 'D') {
+        //  timestamp = std::chrono::duration_cast<std::chrono::seconds>(fs::last_write_time(name).time_since_epoch()).count();
+        // timestamp = std::chrono::duration_cast<std::chrono::seconds>(fs::last_write_time(name).time_since_epoch()).count() + 6437750400;
+        struct stat attr;
+        stat(name.c_str(), &attr);
+        timestamp = attr.st_mtime;
+        //printf("Last modified time: %s", ctime(&attr.st_mtime));
     }
-//    
-//    int fd2 = open(pathname, O_WRONLY|O_CREAT|O_TRUNC, 0755);
-    ssize_t bufsize = 1024, received;
+    else {
+        timestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
+
+    uint32_t size = ui32_size + 2 * char_size + name.size()  + seco_size;
+
+    ssize_t bufsize = 1024;
     char buffer[bufsize];
-    
-    strcpy(buffer, "N");
-    
-    writeData(sock, buffer, 1);
-    
-    long size = pathname.size();
-    writeData(sock, (char*)&size, sizeof(long));
-    
-    
-    size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
-    lseek(fd, 0, SEEK_SET);
-    
-    strcpy(buffer, "B");
-    strcpy(buffer+1, std::to_string(size).c_str());
-    
-    writeData(sock, buffer, (sizeof(long) + 1));
-    
-    long bytesRead = 0;
-    while(1){
-        // read from socket, write to stdout
-        
-        received = readData(fd, buffer, bufsize);
-        if(received <= 0){
-            //shutdown(sock, SHUT_RDWR);
-            close(fd);
-//            exit(0);
-            break;
-        }
-        bytesRead += received;
-        writeData(sock, buffer, received);
-        //printf("%s", buffer);
-    }
-    
-    printf("Expected size: %ld, actual: %ld\n", size, bytesRead);
-    
-    return 0;
-}
 
-void init_notify(std::string root){
-    inotfd = inotify_init();
-    if (inotfd < 0)
-        perror ("inotify_init");
-    printf("inotify fd: %d\n", inotfd);
-    
-    add_notify_dir(root);
-    
-    // TODO: add subnodes
-    
-//    add_notify_dir("/home/pmarc/test");
-//    add_notify_dir("/home/pmarc/test/abcdef");
+    size_t offset = 0;
+    memcpy(buffer+offset, (char*)&size, ui32_size);
+    offset += ui32_size;
+
+    memcpy(buffer+offset, &operation, char_size);
+    offset += char_size;
+
+    strcpy(buffer+offset, name.c_str());
+    offset += name.size() + char_size;
+
+    memcpy(buffer+offset, &timestamp, seco_size);
+    offset += seco_size;
+
+    if (operation == 'C'){
+        std::string md5 = calcMD5Sum(name);
+        size += md5.size() + char_size;
+        strcpy(buffer+offset, md5.c_str());
+    }
+
+    printf("SENDING: \"%s\"\n", buffer+ui32_size);
+    writeData(sock, buffer, size);
 }
 
 void operation_create(std::string name, int wd) {
-    readAndSendFile(name);
+    //readAndSendFile(name);
+    notify_server(get_inotify_fullpath(wd, name), 'C');
     std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
 void operation_delete(std::string name, int wd) {
-    
+    sendDeleteFile(name);
+    notify_server(get_inotify_fullpath(wd, name), 'D');
     std::cout << "\t=> ("<<wd<<")DELETE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
@@ -158,11 +158,6 @@ struct Handler {
     virtual int handleEvent(uint32_t event) = 0;
 };
 
-
-std::string last_name = "";
-uint32_t cookie = 0;
-int last_wd = 0;
- 
 struct Inotify :  Handler {
     virtual int handleEvent(uint32_t ee) override {
         
@@ -291,12 +286,8 @@ struct Inotify :  Handler {
     // ...
 };
 
-uint16_t readPort(char * txt){
-    char * ptr;
-    auto port = strtol(txt, &ptr, 10);
-    if(*ptr!=0 || port<1 || (port>((1<<16)-1))) error(1,0,"illegal argument %s", txt);
-    return port;
-}
+
+uint16_t readPort(char * txt);
 
 
 int main(int argc, char **argv)
@@ -374,4 +365,129 @@ int main(int argc, char **argv)
 
     
 	return 0;
+}
+
+
+void ctrl_c(int){
+    close(inotfd);
+    printf("\nClosing client\n");
+    exit(0);
+}
+
+ssize_t readData(int fd, char * buffer, ssize_t buffsize){
+    auto ret = read(fd, buffer, buffsize);
+    if(ret==-1) error(1,errno, "read failed on descriptor %d", fd);
+    return ret;
+}
+
+void writeData(int fd, char * buffer, ssize_t count){
+    auto ret = write(fd, buffer, count);
+    if(ret==-1) error(1, errno, "write failed on descriptor %d", fd);
+    if(ret!=count) error(0, errno, "wrote less than requested to descriptor %d (%ld/%ld)", fd, count, ret);
+}
+uint16_t readPort(char * txt){
+    char * ptr;
+    auto port = strtol(txt, &ptr, 10);
+    if(*ptr!=0 || port<1 || (port>((1<<16)-1))) error(1,0,"illegal argument %s", txt);
+    return port;
+}
+int add_notify_dir(std::string name){
+    uint32_t flags = /*IN_MOVED_FROM|IN_MOVED_TO|*/ IN_CLOSE_WRITE|IN_DELETE|IN_CREATE;
+    int wd = inotify_add_watch(inotfd, name.c_str(), flags);
+    if (wd < 0) {
+        perror ("inotify_add_watch");
+        return 1;
+    }
+    
+    inotify_dirs[wd] = name;
+    
+    printf("added inotify wd: %d to %s\n", wd, name.c_str());
+    
+    return wd;
+}
+std::string get_inotify_fullpath(int wd, std::string name){
+    return inotify_dirs[wd] + "/" + name;
+}
+void init_notify(std::string root){
+    inotfd = inotify_init();
+    if (inotfd < 0)
+        perror ("inotify_init");
+    printf("inotify fd: %d\n", inotfd);
+    
+    add_notify_dir(root);
+    
+    // TODO: add subnodes
+}
+
+int readAndSendFile(std::string pathname){
+    int fd = open(pathname.c_str(), O_RDONLY|O_NOATIME);
+    if (fd < 0){
+        perror("Otwieranie pliku");
+        return 1;
+    }
+//    
+//    int fd2 = open(pathname, O_WRONLY|O_CREAT|O_TRUNC, 0755);
+    ssize_t bufsize = 1024, received;
+    char buffer[bufsize];
+    
+    strcpy(buffer, "N");
+    
+    writeData(sock, buffer, 1);
+    
+    uint32_t size = pathname.size();
+    writeData(sock, (char*)&size, sizeof(uint32_t));
+    
+    
+    size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
+    lseek(fd, 0, SEEK_SET);
+    
+    strcpy(buffer, "B");
+    char * const ptrSize = reinterpret_cast<char * const>(&size);
+    memcpy(buffer+1, ptrSize, sizeof(uint32_t));
+    
+    writeData(sock, buffer, (sizeof(uint32_t) + 1));
+    
+    long bytesRead = 0;
+    while(1){
+        // read from socket, write to stdout
+        
+        received = readData(fd, buffer, bufsize);
+        if(received <= 0){
+            //shutdown(sock, SHUT_RDWR);
+            close(fd);
+//            exit(0);
+            break;
+        }
+        bytesRead += received;
+        writeData(sock, buffer, received);
+        //printf("%s", buffer);
+    }
+    
+    printf("Expected size: %d, actual: %ld\n", size, bytesRead);
+    
+    return 0;
+}
+
+
+int sendDeleteFile(std::string pathname){
+    // ssize_t bufsize = 1024, received;
+    // char buffer[bufsize];
+    
+    // strcpy(buffer, "N");
+    
+    // writeData(sock, buffer, 1);
+    
+    // uint32_t size = pathname.size();
+    // writeData(sock, (char*)&size, sizeof(uint32_t));
+    
+    
+    // size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
+    // lseek(fd, 0, SEEK_SET);
+    
+    // strcpy(buffer, "B");
+    // char * const ptrSize = reinterpret_cast<char * const>(&size);
+    // memcpy(buffer+1, ptrSize, sizeof(uint32_t));
+    
+    // writeData(sock, buffer, (sizeof(uint32_t) + 1));
+    return 0;
 }
