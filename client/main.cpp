@@ -207,6 +207,8 @@ void send_to_server(std::string name, char operation){
             offset += length;
             break;
         case 'T':
+            length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
             // send in the next message
             size_to_send = offset;
             json_content = get_json();
