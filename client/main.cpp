@@ -32,10 +32,13 @@
 #include <chrono>
 #include <sys/stat.h>     
 
+#include "../shared_lib/protocolHandlerClient.h"
+
 std::string root;
 int sock;
 
 ProtocolSender *proto_sender;
+ProtocolHandlerClient *proto_handler;
 
 void ctrl_c(int);
 uint16_t readPort(char * txt);
@@ -226,11 +229,12 @@ private:
 };
 
 struct NetworkHandler : Handler {
+
     virtual int handleEvent(uint32_t ee) override {
         
         
         if(ee & EPOLLIN){
-            
+            proto_handler->read(sock);
         }
 
         return 0;
@@ -262,15 +266,21 @@ int main(int argc, char **argv)
     printf("Wysyłanie wiadomości do serwera...\n");
     proto_sender->send_message("", 'T');
     proto_sender->send_message("/home/pmarc/test/123456.txt", 'B');
+
+    proto_handler = new ProtocolHandlerClient(proto_sender);
     
     struct InotifyHandler inotify = InotifyHandler(root, proto_sender);
     printf(("Połączenie na %s:%s, oczekiwanie na zmiany w: " + root + "\n").c_str(), argv[1], argv[2] );
     
+    struct NetworkHandler networkHandler = NetworkHandler();
 
     int epollfd = epoll_create1(0);
     
     epoll_event ee {EPOLLIN, { .ptr=&inotify }};
     epoll_ctl(epollfd, EPOLL_CTL_ADD, inotify.getFd(), &ee);
+    
+    epoll_event ee1 {EPOLLIN, { .ptr=&networkHandler }};
+    epoll_ctl(epollfd, EPOLL_CTL_ADD, sock, &ee1);
     
         
     while(1){
@@ -293,7 +303,8 @@ int main(int argc, char **argv)
 
 void ctrl_c(int){
     close(sock);
-    free(proto_sender);
+    delete proto_sender;
+    delete proto_handler;
     printf("\nClosing client\n");
     exit(0);
 }

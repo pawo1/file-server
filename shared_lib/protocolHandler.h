@@ -4,7 +4,7 @@
 #define CLIENT_BUFFER 1024
 
 class ProtocolHandler {
-private:
+protected:
     json *fileSystemTree;
     
     char const_buffer[CLIENT_BUFFER];
@@ -18,8 +18,6 @@ private:
     std::fstream file;
     char msg_type;
     int64_t msg_timestamp;
-
-protected:
     void _moveBuffer(char type, uint32_t offset=0);
     void _createStream();
     virtual void _completeTransmission();
