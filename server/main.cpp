@@ -158,7 +158,7 @@ public:
             count = read(_fd, 
                         const_buffer+const_head, 
                         std::min(CLIENT_BUFFER-const_head, 
-                                (trans_size-(read_bytes+const_head))
+                                trans_size > 0 ? (trans_size-(read_bytes+const_head)) : CLIENT_BUFFER
                                 )
                         );
             if(count > 0) {
@@ -232,7 +232,7 @@ class : Handler {
 
 int main()
 {
-    json mockup_configuration = json::parse(R"({"host": "localhost", "port": 1235, "path":"/home/pawo/Dokumenty/server-folder/"})");
+    json mockup_configuration = json::parse(R"({"host": "localhost", "port": 1235, "path":"/home/pmarc/Dokumenty/"})");
     
     std::string host = mockup_configuration["host"];
     std::string path =  mockup_configuration["path"];

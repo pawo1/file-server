@@ -171,7 +171,7 @@ void send_to_server(std::string name, char operation){
     ssize_t bufsize = 1024;
     char buffer[bufsize];
 
-    uint32_t offset = ui32_size;
+    uint32_t offset = ui32_size; // also size of the entire message
     uint32_t size_to_send = ui32_size;
 
     // add operation char
@@ -181,25 +181,25 @@ void send_to_server(std::string name, char operation){
     switch (operation)
     {
         case 'U':
-            length = add_filename(buffer+offset, name);
-            offset += length;
             length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
+            length = add_filename(buffer+offset, name);
             offset += length;
             length = add_md5(buffer+offset, name);
             offset += length;
             size_to_send = offset;
             break;
         case 'D':
-            length = add_filename(buffer+offset, name);
-            offset += length;
             length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
+            length = add_filename(buffer+offset, name);
             offset += length;
             size_to_send = offset;
             break;
         case 'B':
-            length = add_filename(buffer+offset, name);
-            offset += length;
             length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
+            length = add_filename(buffer+offset, name);
             offset += length;
             size_to_send = offset;
             // send in the next message
@@ -207,6 +207,8 @@ void send_to_server(std::string name, char operation){
             offset += length;
             break;
         case 'T':
+            length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
             // send in the next message
             size_to_send = offset;
             json_content = get_json();
@@ -249,7 +251,7 @@ struct Handler {
     virtual int handleEvent(uint32_t event) = 0;
 };
 
-struct Inotify :  Handler {
+struct InotifyHandler :  Handler {
     virtual int handleEvent(uint32_t ee) override {
         
         
@@ -377,6 +379,16 @@ struct Inotify :  Handler {
     // ...
 };
 
+struct NetworkHandler : Handler {
+    virtual int handleEvent(uint32_t ee) override {
+        
+        
+        if(ee & EPOLLIN){
+
+        }
+    }
+};
+
 
 uint16_t readPort(char * txt);
 
@@ -427,13 +439,14 @@ int main(int argc, char **argv)
     freeaddrinfo(resolved);
     
     printf("Wysyłanie wiadomości do serwera...\n");
-    send_to_server("", 'T');
+    // send_to_server("", 'T');
+    send_to_server("/home/pmarc/test/123456.txt", 'B');
     
     printf(("Połączenie na %s:%s, oczekiwanie na zmiany w: " + root + "\n").c_str(), argv[1], argv[2] );
     
     int epollfd = epoll_create1(0);
     
-    struct Inotify inotify;
+    struct InotifyHandler inotify;
     
     epoll_event ee {EPOLLIN, { .ptr=&inotify }};
     epoll_ctl(epollfd, EPOLL_CTL_ADD, inotfd, &ee);
