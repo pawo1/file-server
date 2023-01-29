@@ -83,6 +83,10 @@ private:
         memset(const_buffer, ' ', CLIENT_BUFFER); // filename search by '\0' so buffer must be fullfilled with different value
         read_bytes += (uint32_t)len;
         const_head = 0;
+
+        if(read_bytes == trans_size)
+            _completeTransmission();
+
     }
 
     void _createStream() {
@@ -104,8 +108,14 @@ private:
                 break;
             default:
                 std::cout << "Corrupted data from client " << _fd << std::endl;
-                break;
+                return;
         }
+
+        if(trans_buffer != nullptr)
+            delete [] trans_buffer;
+                    
+        read_bytes = 0;
+        trans_size = 0;
     }
 
 public:
@@ -115,6 +125,7 @@ public:
         read_bytes = 0;
         trans_size = 0;
         const_head = 0;
+        trans_buffer = nullptr;
  
     }
     virtual ~Client(){
@@ -161,23 +172,8 @@ public:
                         }
                     }
                 } else {
-                    if(const_head == CLIENT_BUFFER) 
+                    if(const_head == CLIENT_BUFFER || (trans_size == (read_bytes+const_head))) 
                         _moveBuffer(msg_type);
-                        
-
-                    if(trans_size == (read_bytes+const_head)) {
-                        if(msg_type == 'B') {
-                            _moveBuffer(msg_type);
-                        } else {
-                            _moveBuffer(msg_type);
-                            _completeTransmission();
-                            delete [] trans_buffer;
-                        }
-                        
-                        
-                        read_bytes = 0;
-                        trans_size = 0;
-                    }
                 }
             } else {
                 events |= EPOLLERR;
@@ -234,7 +230,8 @@ int main()
     }
     
     fileSystemTree = parseDirectoryToTree(mockup_configuration["path"]);
-    std::cout << fileSystemTree.dump(2) << std::endl;
+    std::string test = fileSystemTree.dump(2);
+    std::cout << test << std::endl;
     
     servFd = socket(AF_INET, SOCK_STREAM, 0);
     if(servFd == -1) error(1, errno, "socket failed");
@@ -282,7 +279,7 @@ void ctrl_c(int){
     exit(0);
 }
 
-void sendToAllBut(int fd, char * buffer, int count){
+void sendToAll(int fd, char * buffer, int count){
     auto it = clients.begin();
     while(it!=clients.end()){
         Client * client = *it;
@@ -290,4 +287,8 @@ void sendToAllBut(int fd, char * buffer, int count){
         if(client->fd()!=fd)
             client->write(buffer, count);
     }
+}
+
+void sendToClient() {
+
 }
