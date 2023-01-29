@@ -98,6 +98,19 @@ private:
     void _completeTransmission() {
         switch(msg_type) {
             case 'D':
+
+                std::string str(trans_buffer);
+                filename = str;
+                int64_t timestamp = *(int64_t*)(trans_buffer + filename.lenght());
+                json node = findNodeByPath(fileSystemTree, filename);
+                if(node.empty()) std::cout << "No file server site\n";
+
+                if((int64_t)node["write_time"] < timestamp) {
+                    std::cout << "Deleting file\n";
+                } else {
+                    std::cout << "Server has newer version of file. Sending to client...\n";
+                }
+
                 break;
             case 'U':
                 break;
