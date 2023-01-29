@@ -19,6 +19,11 @@
 #include <queue>
 #include <map>
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <math.h>
+
 
 
 /* size of the event structure, not counting name */
@@ -27,18 +32,24 @@
 /* reasonable guess as to size of 1024 events */
 #define BUF_LEN        (1024 * (EVENT_SIZE + 16))
 
+
+
+std::string root;
+int sock;
 int inotfd = 0;
 
 std::map<int, std::string> inotify_dirs;
 
-int add_notify_dir(const char * name){
-    int wd = inotify_add_watch(inotfd, name, IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_DELETE|IN_CREATE);
+int add_notify_dir(std::string name){
+    int wd = inotify_add_watch(inotfd, name.c_str(), IN_MOVED_FROM|IN_MOVED_TO|IN_CLOSE_WRITE|IN_DELETE|IN_CREATE);
     if (wd < 0) {
         perror ("inotify_add_watch");
         return 1;
     }
     
     inotify_dirs[wd] = name;
+    
+    printf("added inotify wd: %d to %s\n", wd, name.c_str());
     
     return wd;
 }
@@ -50,12 +61,86 @@ std::string get_inotify_fullpath(int wd, std::string name){
 
 void ctrl_c(int){
     close(inotfd);
-    printf("Closing client\n");
+    printf("\nClosing client\n");
     exit(0);
 }
 
-void operation_create(std::string name, int wd) {
+ssize_t readData(int fd, char * buffer, ssize_t buffsize){
+    auto ret = read(fd, buffer, buffsize);
+    if(ret==-1) error(1,errno, "read failed on descriptor %d", fd);
+    return ret;
+}
+
+void writeData(int fd, char * buffer, ssize_t count){
+    auto ret = write(fd, buffer, count);
+    if(ret==-1) error(1, errno, "write failed on descriptor %d", fd);
+    if(ret!=count) error(0, errno, "wrote less than requested to descriptor %d (%ld/%ld)", fd, count, ret);
+}
+
+int readAndSendFile(std::string pathname){
+    int fd = open(pathname.c_str(), O_RDONLY|O_NOATIME);
+    if (fd < 0){
+        perror("Otwieranie pliku");
+        return 1;
+    }
+//    
+//    int fd2 = open(pathname, O_WRONLY|O_CREAT|O_TRUNC, 0755);
+    ssize_t bufsize = 1024, received;
+    char buffer[bufsize];
     
+    strcpy(buffer, "N");
+    
+    writeData(sock, buffer, 1);
+    
+    long size = pathname.size();
+    writeData(sock, (char*)&size, sizeof(long));
+    
+    
+    size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
+    lseek(fd, 0, SEEK_SET);
+    
+    strcpy(buffer, "B");
+    strcpy(buffer+1, std::to_string(size).c_str());
+    
+    writeData(sock, buffer, (sizeof(long) + 1));
+    
+    long bytesRead = 0;
+    while(1){
+        // read from socket, write to stdout
+        
+        received = readData(fd, buffer, bufsize);
+        if(received <= 0){
+            //shutdown(sock, SHUT_RDWR);
+            close(fd);
+//            exit(0);
+            break;
+        }
+        bytesRead += received;
+        writeData(sock, buffer, received);
+        //printf("%s", buffer);
+    }
+    
+    printf("Expected size: %ld, actual: %ld\n", size, bytesRead);
+    
+    return 0;
+}
+
+void init_notify(std::string root){
+    inotfd = inotify_init();
+    if (inotfd < 0)
+        perror ("inotify_init");
+    printf("inotify fd: %d\n", inotfd);
+    
+    add_notify_dir(root);
+    
+    // TODO: add subnodes
+    
+//    add_notify_dir("/home/pmarc/test");
+//    add_notify_dir("/home/pmarc/test/abcdef");
+}
+
+void operation_create(std::string name, int wd) {
+    readAndSendFile(name);
     std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath(wd, name) << std::endl;
 }
 
@@ -206,70 +291,57 @@ struct Inotify :  Handler {
     // ...
 };
 
-
-ssize_t readData(int fd, char * buffer, ssize_t buffsize){
-    auto ret = read(fd, buffer, buffsize);
-    if(ret==-1) error(1,errno, "read failed on descriptor %d", fd);
-    return ret;
-}
-
-void writeData(int fd, char * buffer, ssize_t count){
-    auto ret = write(fd, buffer, count);
-    if(ret==-1) error(1, errno, "write failed on descriptor %d", fd);
-    if(ret!=count) error(0, errno, "wrote less than requested to descriptor %d (%ld/%ld)", fd, count, ret);
-}
-
-int readAndSendFile(const char* pathname, int sock){
-    int fd = open(pathname, O_RDONLY|O_NOATIME);
-    if (fd < 0){
-        perror("Otwieranie pliku");
-        return 1;
-    }
-    
-    int fd2 = open("/home/pmarc/test/kalafior2.png", O_WRONLY|O_CREAT|O_TRUNC, 0755);
-    
-    long size = lseek(fd, 0, SEEK_END); // seek to end of file - read file size
-    lseek(fd, 0, SEEK_SET);
-    
-    long bytesRead = 0;
-    while(1){
-        // read from socket, write to stdout
-        ssize_t bufsize = 255, received;
-        char buffer[bufsize];
-        received = readData(fd, buffer, bufsize);
-        if(received <= 0){
-            //shutdown(sock, SHUT_RDWR);
-            close(fd);
-//            exit(0);
-            break;
-        }
-        bytesRead += received;
-        writeData(fd2, buffer, received);
-        //printf("%s", buffer);
-    }
-    
-    printf("Expected size: %ld, actual: %ld\n", size, bytesRead);
-    
-    return 0;
+uint16_t readPort(char * txt){
+    char * ptr;
+    auto port = strtol(txt, &ptr, 10);
+    if(*ptr!=0 || port<1 || (port>((1<<16)-1))) error(1,0,"illegal argument %s", txt);
+    return port;
 }
 
 
 int main(int argc, char **argv)
 {
-	printf("Czytanie pliku\n");
-    
-    
-    readAndSendFile("/home/pmarc/test/kalafior.png", 2);
-    
-	printf("\nOdczytano plik\n");
-    
-    
-    inotfd = inotify_init();
-    if (inotfd < 0)
-        perror ("inotify_init");
+//	printf("Czytanie pliku\n");
+//    
+//    
+//    readAndSendFile("/home/pmarc/test/kalafior.png", 2);
+//    
+//	printf("\nOdczytano plik\n");
 
-    add_notify_dir("/home/pmarc/test");
-    add_notify_dir("/home/pmarc/test/abcdef");
+    if (argc == 3){
+        root = ".";
+    }
+    else if (argc == 4){
+        root = argv[3];
+    } else {
+        printf("Składnia: client <ip> <port> [ścieżka źródłowa]\n");
+        return 1;
+    }
+    
+    signal(SIGINT, ctrl_c);
+    signal(SIGPIPE, SIG_IGN);
+    
+    init_notify(root);
+    
+    
+    // Resolve arguments to IPv4 address with a port number
+    addrinfo *resolved, hints={.ai_flags=0, .ai_family=AF_INET, .ai_socktype=SOCK_STREAM};
+    int res = getaddrinfo(argv[1], argv[2], &hints, &resolved);
+    if(res || !resolved) error(1, 0, "getaddrinfo: %s", gai_strerror(res));
+    
+    // create socket
+    sock = socket(resolved->ai_family, resolved->ai_socktype, 0);
+    if(sock == -1) error(1, errno, "socket failed");
+    
+    // attept to connect
+    res = connect(sock, resolved->ai_addr, resolved->ai_addrlen);
+    if(res) error(1, errno, "connect failed");
+    
+    // free memory
+    freeaddrinfo(resolved);
+    
+    
+    printf(("Połączenie na %s:%s, oczekiwanie na zmiany w: " + root + "\n").c_str(), argv[1], argv[2] );
     
     int epollfd = epoll_create1(0);
     
@@ -277,7 +349,6 @@ int main(int argc, char **argv)
     
     epoll_event ee {EPOLLIN, { .ptr=&inotify }};
     epoll_ctl(epollfd, EPOLL_CTL_ADD, inotfd, &ee);
-
     
         
     while(1){
