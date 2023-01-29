@@ -28,8 +28,8 @@
 
 #include "../shared_lib/jsonTree.h"
 #include "../shared_lib/utils.h"
+#include "../shared_lib/protocolHandler.h"
 
-#define CLIENT_BUFFER 1024
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
@@ -49,6 +49,7 @@ uint16_t readPort(char * txt);
 
 void setReuseAddr(int sock);
 
+
 struct Handler {
     virtual ~Handler(){}
     virtual void handleEvent(uint32_t events) = 0;
@@ -57,80 +58,16 @@ struct Handler {
 class Client : public Handler {
 private:
     int _fd;
+    ProtocolHandler _protocolHandler;
 
-
-    char const_buffer[CLIENT_BUFFER];
-    uint32_t const_head;
-
-    uint32_t trans_size;
-    uint32_t read_bytes;
-
-    char *trans_buffer;
-    std::string filename;
-    std::fstream file;
-    char msg_type;
-
-    void _moveBuffer(char type, uint32_t offset=0) {
-        if(const_head == 0) return;
-        
-        int len = const_head-offset;
-        if(len) {
-            if(type=='B')
-                file.write(const_buffer+offset, len);
-            else
-                memcpy(trans_buffer+read_bytes, const_buffer+offset, len);
-        }
-        memset(const_buffer, ' ', CLIENT_BUFFER); // filename search by '\0' so buffer must be fullfilled with different value
-        read_bytes += (uint32_t)len;
-        const_head = 0;
-
-        if(read_bytes == trans_size)
-            _completeTransmission();
-
-    }
-
-    void _createStream() {
-        file.open( (filename+".fstmp"), std::ios::out | std::ios::binary | std::ios::trunc);
-        if(!file.good()) std::cout << "Could not create file" << std::endl;
-    }
-
-
-    void _completeTransmission() {
-        switch(msg_type) {
-            case 'D':
-                break;
-            case 'U':
-                break;
-            case 'T':
-                break;
-            case 'B':
-                file.close();
-                break;
-            default:
-                std::cout << "Corrupted data from client " << _fd << std::endl;
-                return;
-        }
-
-        if(trans_buffer != nullptr)
-            delete [] trans_buffer;
-                    
-        read_bytes = 0;
-        trans_size = 0;
-    }
 
 public:
-    Client(int fd) : _fd(fd) {
+    Client(int fd) : _fd(fd), _protocolHandler(&fileSystemTree) {
         epoll_event ee {EPOLLIN|EPOLLRDHUP, {.ptr=this}};
         epoll_ctl(epollFd, EPOLL_CTL_ADD, _fd, &ee);
-        read_bytes = 0;
-        trans_size = 0;
-        const_head = 0;
-        trans_buffer = nullptr;
- 
     }
     virtual ~Client(){
-        if(trans_buffer != nullptr)
-            delete [] trans_buffer;
+        _protocolHandler.free();
         epoll_ctl(epollFd, EPOLL_CTL_DEL, _fd, nullptr);
         shutdown(_fd, SHUT_RDWR);
         close(_fd);
@@ -139,45 +76,8 @@ public:
 
     virtual void handleEvent(uint32_t events) override {
         if(events & EPOLLIN) {
-            ssize_t count;
-           
-
-            count = read(_fd, 
-                        const_buffer+const_head, 
-                        std::min(CLIENT_BUFFER-const_head, 
-                                trans_size > 0 ? (trans_size-(read_bytes+const_head)) : CLIENT_BUFFER
-                                )
-                        );
-            if(count > 0) {
-                
-                const_head += (uint32_t)count;
-                uint32_t message_header = (uint32_t)(sizeof(uint32_t) + sizeof(char));
-                if(trans_size == 0) {
-                    if(const_head >= ( message_header ) ) {
-                        msg_type = (const_buffer+sizeof(uint32_t))[0];
-                        if( msg_type == 'B' && findNullTerminator(const_buffer, CLIENT_BUFFER)) {
-                            trans_size = *(uint32_t*)const_buffer;
-                            trans_size -= message_header;
-                            std::string str(const_buffer+message_header);
-                            filename = str;
-                            read_bytes += filename.length() + 1;
-                            _createStream();
-                            _moveBuffer(msg_type, message_header + filename.length() + 1);
-
-                        } else if(msg_type != 'B') {
-                            trans_size = *(uint32_t*)const_buffer;
-                            trans_size -= message_header;
-                            trans_buffer = new char[trans_size]();
-                            _moveBuffer(msg_type, message_header);
-                        }
-                    }
-                } else {
-                    if(const_head == CLIENT_BUFFER || (trans_size == (read_bytes+const_head))) 
-                        _moveBuffer(msg_type);
-                }
-            } else {
+            if(!_protocolHandler.read(_fd))
                 events |= EPOLLERR;
-            }
         }
         if(events & ~EPOLLIN){
             remove();
@@ -220,16 +120,19 @@ class : Handler {
 int main()
 {
     json mockup_configuration = json::parse(R"({"host": "localhost", "port": 1235, "path":"/home/pmarc/Dokumenty/"})");
-    
-    std::string host = mockup_configuration["host"];
-    std::string path =  mockup_configuration["path"];
-    uint16_t port = mockup_configuration["port"]; 
-    if(!fs::is_directory(mockup_configuration["path"])) {
-        std::cout << "Wrong path: " << mockup_configuration["path"] << std::endl;
+    std::ifstream ifconf("config.json");
+    //json configuration = mockup_configuration;
+    json configuration = json::parse(ifconf);
+
+    std::string host = configuration["host"];
+    std::string path =  configuration["path"];
+    uint16_t port = configuration["port"]; 
+    if(!fs::is_directory(configuration["path"])) {
+        std::cout << "Wrong path: " << configuration["path"] << std::endl;
         return 1;
     }
     
-    fileSystemTree = parseDirectoryToTree(mockup_configuration["path"]);
+    fileSystemTree = parseDirectoryToTree(configuration["path"]);
     std::string test = fileSystemTree.dump(2);
     std::cout << test << std::endl;
     
