@@ -48,6 +48,7 @@ int connect_to_address(const char* address, const char* port);
 
 struct Handler {
     virtual int handleEvent(uint32_t event) = 0;
+    virtual int getFd() = 0;
 };
 
 struct InotifyHandler :  Handler {
@@ -58,7 +59,7 @@ public:
     ~InotifyHandler(){
         close(this->fd);
     }
-    int getFd(){
+    int getFd() override{
         return this->fd;
     }
     virtual int handleEvent(uint32_t ee) override {       
@@ -230,16 +231,27 @@ private:
 struct NetworkHandler : Handler {
 private:
     ProtocolHandlerClient proto_handler;
+    int sock;
 public:
-    NetworkHandler(int sock, std::string root) : proto_handler(sock, root) {}
+    NetworkHandler(int sock, std::string root) : proto_handler(sock, root), sock(sock) {}
 
     virtual int handleEvent(uint32_t ee) override {
-        
+        bool result = false;
         if(ee & EPOLLIN){
-            this->proto_handler.read(sock);
+            result = this->proto_handler.read(sock);
+            
         }
 
-        return 0;
+        return result ? 0 : 1;
+    }
+
+    virtual int getFd() override {
+        return this->sock;
+    }
+
+    void updateSock(int newSock){
+        // this->proto_handler = ProtocolHandlerClient(newSock, root);
+        this->sock = newSock;
     }
 };
 
@@ -277,8 +289,8 @@ int main()
 
     // add socket to epoll
     struct NetworkHandler networkHandler = NetworkHandler(sock, root);
-    epoll_event ee1 {EPOLLIN, { .ptr=&networkHandler }};
-    epoll_ctl(epollfd, EPOLL_CTL_ADD, sock, &ee1);
+    epoll_event ee_network {EPOLLIN, { .ptr=&networkHandler }};
+    epoll_ctl(epollfd, EPOLL_CTL_ADD, sock, &ee_network);
     
     printf(("Połączenie na %s:%s, oczekiwanie na zmiany w: " + root + "\n\n").c_str(), host, port );
         
@@ -293,7 +305,16 @@ int main()
         printf("=============epoll success\n");
         
         Handler * handler = (Handler*)(ee.data.ptr);
-        handler->handleEvent(ee.events);
+        int result = handler->handleEvent(ee.events);
+        if(result > 0){
+            if (handler->getFd() == sock){
+                epoll_ctl(epollfd, EPOLL_CTL_DEL, sock, &ee);
+                printf("Połączenie zostało przerwane!\n");
+                return 1;
+                // sock = connect_to_address(host.c_str(), port.c_str());
+                // epoll_ctl(epollfd, EPOLL_CTL_ADD, sock, &ee_network);
+            }
+        }
     }
 
     
