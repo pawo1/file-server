@@ -7,8 +7,6 @@
 class ProtocolSenderServer : public ProtocolSender {
 public:
     ProtocolSenderServer(int sock, std::string root);
-
-protected:
     virtual void send_message(std::string name, char operation) override;
 };
 

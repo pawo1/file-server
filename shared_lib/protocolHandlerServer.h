@@ -36,7 +36,7 @@ inline void ProtocolHandlerServer::_completeTransmission() {
             }
         case 'U':
             {
-                _protocolSender->send_message("mockup", 'A');
+                _protocolSender.send_message("mockup", 'A');
                 break;
             }
         case 'T':
