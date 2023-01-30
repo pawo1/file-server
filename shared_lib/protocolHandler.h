@@ -114,7 +114,7 @@ inline bool ProtocolHandler::read(int fd) {
             if(const_head == CLIENT_BUFFER || (trans_size == (read_bytes+const_head))) 
                 _moveBuffer(msg_type);
         }
-        return false;
+        return true;
     } 
     
     return false;
