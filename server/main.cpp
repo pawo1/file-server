@@ -19,7 +19,6 @@
 #include <unordered_set>
 #include <signal.h>
 
-#include <linux/inotify.h>
 #include <nlohmann/json.hpp>
 #include <openssl/md5.h>
 #include <sys/socket.h>
@@ -28,7 +27,8 @@
 
 #include "../shared_lib/jsonTree.h"
 #include "../shared_lib/utils.h"
-#include "../shared_lib/protocolHandler.h"
+#include "../shared_lib/protocolHandlerServer.h"
+#include "../shared_lib/protocolSenderServer.h"
 
 
 namespace fs = std::filesystem;
@@ -39,6 +39,7 @@ class Client;
 int servFd;
 int epollFd;
 json fileSystemTree;
+std::string root;
 std::unordered_set<Client*> clients;
 
 void ctrl_c(int);
@@ -58,11 +59,10 @@ struct Handler {
 class Client : public Handler {
 private:
     int _fd;
-    ProtocolHandler _protocolHandler;
-
+    ProtocolHandlerServer _protocolHandler;
 
 public:
-    Client(int fd) : _fd(fd), _protocolHandler(&fileSystemTree) {
+    Client(int fd) : _fd(fd), _protocolHandler(&fileSystemTree, fd, root) {
         epoll_event ee {EPOLLIN|EPOLLRDHUP, {.ptr=this}};
         epoll_ctl(epollFd, EPOLL_CTL_ADD, _fd, &ee);
     }
@@ -125,14 +125,14 @@ int main()
     json configuration = json::parse(ifconf);
 
     std::string host = configuration["host"];
-    std::string path =  configuration["path"];
+    root =  configuration["path"];
     uint16_t port = configuration["port"]; 
-    if(!fs::is_directory(configuration["path"])) {
-        std::cout << "Wrong path: " << configuration["path"] << std::endl;
+    if(!fs::is_directory(root)) {
+        std::cout << "Wrong path: " << root << std::endl;
         return 1;
     }
     
-    fileSystemTree = parseDirectoryToTree(configuration["path"]);
+    fileSystemTree = parseDirectoryToTree(root);
     std::string test = fileSystemTree.dump(2);
     std::cout << test << std::endl;
     
