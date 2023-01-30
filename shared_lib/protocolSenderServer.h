@@ -37,6 +37,8 @@ inline void ProtocolSenderServer::send_message(std::string name, char operation)
     switch (operation)
     {
         case 'A':
+            length = add_timestamp(buffer+offset, name, operation);
+            offset += length;
             length = add_filename(buffer+offset, name);
             offset += length;
             size_to_send = offset;
