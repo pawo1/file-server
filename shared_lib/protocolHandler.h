@@ -40,11 +40,13 @@ inline ProtocolHandler::ProtocolHandler(json *json_ptr) : fileSystemTree(json_pt
 inline ProtocolHandler::~ProtocolHandler() {
     if(trans_buffer != nullptr)
         delete [] trans_buffer;
+    trans_buffer = nullptr;
 }
 
 inline void ProtocolHandler::free() {
     if(trans_buffer != nullptr)
         delete [] trans_buffer;
+    trans_buffer = nullptr;
 }
 
 inline void ProtocolHandler::_moveBuffer(char type, uint32_t offset) {
