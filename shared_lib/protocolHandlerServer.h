@@ -25,8 +25,9 @@ inline void ProtocolHandlerServer::_completeTransmission() {
                 filename = str;
                 int64_t timestamp = *(int64_t*)(trans_buffer + filename.length());
                 json node = findNodeByPath(*fileSystemTree, filename);
-                if(node.empty()) std::cout << "No file server site\n";
-                if((int64_t)node["write_time"] < timestamp) {
+                if(node.empty()) {
+                    std::cout << "No file server site\n";
+                } else if((int64_t)node["write_time"] < timestamp) {
                     std::cout << "Deleting file\n";
                 } else {
                     std::cout << "Server has newer version of file. Sending to client...\n";
@@ -35,6 +36,7 @@ inline void ProtocolHandlerServer::_completeTransmission() {
             }
         case 'U':
             {
+                _protocolSender->send_message("mockup", 'A');
                 break;
             }
         case 'T':
