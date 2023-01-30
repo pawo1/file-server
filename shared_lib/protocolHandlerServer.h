@@ -54,7 +54,7 @@ inline void ProtocolHandlerServer::_completeTransmission() {
     }
     if(trans_buffer != nullptr)
         delete [] trans_buffer;
-                
+    trans_buffer = nullptr;
     read_bytes = 0;
     trans_size = 0;
 }
