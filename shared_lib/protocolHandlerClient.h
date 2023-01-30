@@ -6,18 +6,17 @@
 
 class ProtocolHandlerClient : public ProtocolHandler{
 public:
-    ProtocolHandlerClient(ProtocolSender* proto_sender);
+    ProtocolHandlerClient(int sock, std::string root);
 protected:
-    ProtocolSender* proto_sender;
+    ProtocolSender proto_sender;
     virtual void _completeTransmission() override;
 };
 
-inline ProtocolHandlerClient::ProtocolHandlerClient(ProtocolSender* proto_sender) : ProtocolHandler(nullptr) {
+inline ProtocolHandlerClient::ProtocolHandlerClient(int sock, std::string root) : ProtocolHandler((json*)nullptr), proto_sender(sock, root) {
     read_bytes = 0;
     trans_size = 0;
     const_head = 0;
     trans_buffer = nullptr;
-    this->proto_sender = proto_sender;
 }
 
 inline void ProtocolHandlerClient::_completeTransmission() {
@@ -35,7 +34,7 @@ inline void ProtocolHandlerClient::_completeTransmission() {
                 printf("operacja A\n");
                 std::string str(trans_buffer);
                 filename = str;
-                proto_sender->send_message(filename, 'B');
+                proto_sender.send_message(filename, 'B');
                 break;
             }
         case 'B':

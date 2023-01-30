@@ -37,14 +37,14 @@
 std::string root;
 int sock;
 
-ProtocolSender *proto_sender;
-ProtocolHandlerClient *proto_handler;
+//ProtocolSender *proto_sender;
+//ProtocolHandlerClient *proto_handler;
 
 void ctrl_c(int);
 uint16_t readPort(char * txt);
 ssize_t readData(int, char * , ssize_t );
 void writeData(int, char * , ssize_t );
-int connect_to_address(char* address, char* port);
+int connect_to_address(const char* address, const char* port);
 
 struct Handler {
     virtual int handleEvent(uint32_t event) = 0;
@@ -52,9 +52,8 @@ struct Handler {
 
 struct InotifyHandler :  Handler {
 public:
-    InotifyHandler(std::string root, ProtocolSender *proto_sender){
+    InotifyHandler(int sock, std::string root) : proto_sender(sock, root) {
         init_notify(root);
-        this->proto_sender = proto_sender;
     }
     ~InotifyHandler(){
         close(this->fd);
@@ -79,7 +78,7 @@ public:
 
                 std::string name = event->name;
                 // ignoruj pliki z rozszerzeniem .fstmp
-                if (name.find(".fstmp") != std::string::npos) {
+                if (name.ends_with(".fstmp")) {
                     i += const_event_size + event->len;
                     continue;
                 }
@@ -181,7 +180,7 @@ private:
     int last_wd = 0;
 
     std::map<int, std::string> inotify_dirs;
-    ProtocolSender *proto_sender;
+    ProtocolSender proto_sender;
 
     static const long const_event_size = sizeof(struct inotify_event);
     static const long const_buflen = 1024 * (const_event_size + 16);
@@ -214,12 +213,12 @@ private:
         // TODO: add subnodes
     }  
     void operation_create(std::string name, int wd) {
-        this->proto_sender->send_message(get_inotify_fullpath(wd, name), 'U');
+        this->proto_sender.send_message(get_inotify_fullpath(wd, name), 'U');
         // send_to_server(get_inotify_fullpath(wd, name), 'B');   // TODO: ONLY FOR TESTING! 
         std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath(wd, name) << std::endl;
     }
     void operation_delete(std::string name, int wd) {
-        this->proto_sender->send_message(get_inotify_fullpath(wd, name), 'D');
+        this->proto_sender.send_message(get_inotify_fullpath(wd, name), 'D');
         std::cout << "\t=> ("<<wd<<")DELETE: " << get_inotify_fullpath(wd, name) << std::endl;
     }
     // void operation_rename(std::string name1, std::string name2, int wd) {
@@ -229,12 +228,15 @@ private:
 };
 
 struct NetworkHandler : Handler {
+private:
+    ProtocolHandlerClient proto_handler;
+public:
+    NetworkHandler(int sock, std::string root) : proto_handler(sock, root) {}
 
     virtual int handleEvent(uint32_t ee) override {
         
-        
         if(ee & EPOLLIN){
-            proto_handler->read(sock);
+            this->proto_handler.read(sock);
         }
 
         return 0;
@@ -242,52 +244,50 @@ struct NetworkHandler : Handler {
 };
 
 
-
-
-int main(int argc, char **argv)
+int main()
 {
-    if (argc == 3){
-        root = ".";
-    }
-    else if (argc == 4){
-        root = argv[3];
-    } else {
-        printf("Składnia: client <ip> <port> [ścieżka źródłowa]\n");
-        return 1;
-    }
-    
+    // handle interrupts
     signal(SIGINT, ctrl_c);
     signal(SIGPIPE, SIG_IGN);
     
-    sock = connect_to_address(argv[1], argv[2]);
+    // read config
+    std::ifstream ifconf("config.json");
+    json configuration = json::parse(ifconf);
+    root = configuration["path"];
+    std::string host = configuration["host"];
+    std::string port = configuration["port"];
 
-    proto_sender = new ProtocolSender(sock, root);
+    // try connect
+    sock = connect_to_address(host.c_str(), port.c_str());
 
+    // initial sync
+    ProtocolSender proto_sender = ProtocolSender(sock, root);
     printf("Wysyłanie wiadomości do serwera...\n");
-    proto_sender->send_message("", 'T');
-    proto_sender->send_message("/home/pmarc/test/123456.txt", 'B');
-
-    proto_handler = new ProtocolHandlerClient(proto_sender);
+    proto_sender.send_message("", 'T');
+    //proto_sender.send_message("/home/pmarc/test/123456.txt", 'B'); // for testing
     
-    struct InotifyHandler inotify = InotifyHandler(root, proto_sender);
-    printf(("Połączenie na %s:%s, oczekiwanie na zmiany w: " + root + "\n").c_str(), argv[1], argv[2] );
-    
-    struct NetworkHandler networkHandler = NetworkHandler();
 
+    // preapre epoll
     int epollfd = epoll_create1(0);
-    
+
+    // add inotify to epoll
+    struct InotifyHandler inotify = InotifyHandler(sock, root);
     epoll_event ee {EPOLLIN, { .ptr=&inotify }};
     epoll_ctl(epollfd, EPOLL_CTL_ADD, inotify.getFd(), &ee);
-    
+
+    // add socket to epoll
+    struct NetworkHandler networkHandler = NetworkHandler(sock, root);
     epoll_event ee1 {EPOLLIN, { .ptr=&networkHandler }};
     epoll_ctl(epollfd, EPOLL_CTL_ADD, sock, &ee1);
     
+    printf(("Połączenie na %s:%s, oczekiwanie na zmiany w: " + root + "\n\n").c_str(), host, port );
         
+    // wait in epoll
     while(1){
         printf("Waiting for epoll...\n");
         if(-1 == epoll_wait(epollfd, &ee, 1, -1)) {
-            //shutdown(sock, SHUT_RDWR);
-            //close(sock);
+            shutdown(sock, SHUT_RDWR);
+            close(sock);
             error(1,errno,"epoll_wait failed");
         }
         printf("=============epoll success\n");
@@ -302,9 +302,8 @@ int main(int argc, char **argv)
 
 
 void ctrl_c(int){
+    shutdown(sock, SHUT_RDWR);
     close(sock);
-    delete proto_sender;
-    delete proto_handler;
     printf("\nClosing client\n");
     exit(0);
 }
@@ -326,7 +325,7 @@ uint16_t readPort(char * txt){
     if(*ptr!=0 || port<1 || (port>((1<<16)-1))) error(1,0,"illegal argument %s", txt);
     return port;
 }
-int connect_to_address(char* address, char* port){
+int connect_to_address(const char* address, const char* port){
     // Resolve arguments to IPv4 address with a port number
     //addrinfo *resolved, hints;
     addrinfo *resolved;
