@@ -4,10 +4,10 @@
 #define CLIENT_BUFFER 1024
 
 class ProtocolHandler {
-private:
-    char *trans_buffer;
+// private:
 
 protected:
+    char *trans_buffer;
     json *fileSystemTree;
     
     char const_buffer[CLIENT_BUFFER];
@@ -109,7 +109,7 @@ inline bool ProtocolHandler::read(int fd) {
                 } else if(msg_type != 'B') {
                     trans_size = *(uint32_t*)const_buffer;
                     trans_size -= message_header;
-                    if(tans_size != 0)
+                    if(trans_size != 0)
                         trans_buffer = new char[trans_size]();
                     else
                         std::cout << "Protocol error, size in header == 0!" << std::endl;

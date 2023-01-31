@@ -5,8 +5,8 @@
 #include "../shared_lib/protocolSenderServer.h"
 
 class ProtocolHandlerServer : public ProtocolHandler {
-private:
-    char *trans_buffer;
+// private:
+//     char *trans_buffer;
 
 public:
     ProtocolHandlerServer(json *json_ptr, int sock, std::string root);
