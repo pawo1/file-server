@@ -175,7 +175,7 @@ inline bool ProtocolSender::send_message(std::string name, char operation){
             size_to_send = offset;
             // send in the next message
             //name = this->root + "/" + name;
-            fd = get_file_descriptor(name, &length); // opens fd
+            fd = get_file_descriptor(this->root + "/" + name, &length); // opens fd
             if(fd == -1){
                 abort = true;
                 break;
@@ -197,6 +197,7 @@ inline bool ProtocolSender::send_message(std::string name, char operation){
         memcpy(buffer, (char*)&offset, ui32_size);
 
         // send message without file content
+        printf("BUFFER: %s\n", buffer);
         if(!writeData(this->sock, buffer, size_to_send))
             return false;
 

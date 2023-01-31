@@ -4,10 +4,10 @@
 #define CLIENT_BUFFER 1024
 
 class ProtocolHandler {
-private:
-    char *trans_buffer;
+// private:
 
 protected:
+    char *trans_buffer;
     json *fileSystemTree;
     
     char const_buffer[CLIENT_BUFFER];
