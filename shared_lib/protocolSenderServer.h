@@ -7,14 +7,14 @@
 class ProtocolSenderServer : public ProtocolSender {
 public:
     ProtocolSenderServer(int sock, std::string root);
-    virtual void send_message(std::string name, char operation) override;
+    virtual bool send_message(std::string name, char operation) override;
 };
 
 inline ProtocolSenderServer::ProtocolSenderServer(int sock, std::string root) : ProtocolSender(sock, root) {
 
 }
 
-inline void ProtocolSenderServer::send_message(std::string name, char operation){
+inline bool ProtocolSenderServer::send_message(std::string name, char operation){
 
    const size_t ui32_size = sizeof(uint32_t);
     const size_t char_size = sizeof(char);
@@ -73,7 +73,8 @@ inline void ProtocolSenderServer::send_message(std::string name, char operation)
         memcpy(buffer, (char*)&offset, ui32_size);
 
         // send message without file content
-        writeData(this->sock, buffer, size_to_send);
+        if(!writeData(this->sock, buffer, size_to_send))
+            return false;
 
         // the next message is now
         if(fd >= 0){
@@ -85,7 +86,9 @@ inline void ProtocolSenderServer::send_message(std::string name, char operation)
     }
     else {
         printf("Wystąpił błąd. Nie wysłano wiadomości.\n");
+        return false;
     }
+    return true;
 }
 
 #endif // PROTOCOL_SENDER_SERVER_H

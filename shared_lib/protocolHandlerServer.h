@@ -72,13 +72,13 @@ inline void ProtocolHandlerServer::_completeTransmission() {
         case 'B':
             {
                 file.close();
-
+                fs::rename(filename, filename.substr(0, filename.find_last_of('.')));
                 break;
             }
         default:
             {  
-            std::cout << "Corrupted data from client " << std::endl;
-            return;
+                std::cout << "Corrupted data from client " << std::endl;
+                break;
             }
     }
     if(trans_buffer != nullptr)

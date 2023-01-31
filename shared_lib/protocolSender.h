@@ -27,10 +27,10 @@ protected:
     int send_string_content(std::string string_content);
     
     ssize_t readData(int, char * , ssize_t );
-    void writeData(int, char * , ssize_t );
+    bool writeData(int, char * , ssize_t );
 public:
     ProtocolSender(int sock, std::string root);
-    virtual void send_message(std::string name, char operation);
+    virtual bool send_message(std::string name, char operation);
 };
 
 inline ProtocolSender::ProtocolSender(int sock, std::string root){
@@ -127,7 +127,7 @@ inline int ProtocolSender::send_string_content(std::string string_content){
     return offset;
 }
 
-inline void ProtocolSender::send_message(std::string name, char operation){
+inline bool ProtocolSender::send_message(std::string name, char operation){
 
     const size_t ui32_size = sizeof(uint32_t);
     const size_t char_size = sizeof(char);
@@ -196,7 +196,8 @@ inline void ProtocolSender::send_message(std::string name, char operation){
         memcpy(buffer, (char*)&offset, ui32_size);
 
         // send message without file content
-        writeData(this->sock, buffer, size_to_send);
+        if(!writeData(this->sock, buffer, size_to_send))
+            return false;
 
         // the next message is now
         if(fd >= 0){
@@ -208,8 +209,9 @@ inline void ProtocolSender::send_message(std::string name, char operation){
     }
     else {
         printf("Wystąpił błąd. Nie wysłano wiadomości.\n");
+        return false;
     }
-    
+    return true;
 }
 
 inline ssize_t ProtocolSender::readData(int fd, char * buffer, ssize_t buffsize){
@@ -218,10 +220,11 @@ inline ssize_t ProtocolSender::readData(int fd, char * buffer, ssize_t buffsize)
     return ret;
 }
 
-inline void ProtocolSender::writeData(int fd, char * buffer, ssize_t count){
+inline bool ProtocolSender::writeData(int fd, char * buffer, ssize_t count){
     auto ret = write(fd, buffer, count);
-    if(ret==-1) error(1, errno, "write failed on descriptor %d", fd);
-    if(ret!=count) error(0, errno, "wrote less than requested to descriptor %d (%ld/%ld)", fd, count, ret);
+    if(ret==-1) { error(1, errno, "write failed on descriptor %d", fd); return false; }
+    if(ret!=count) { error(0, errno, "wrote less than requested to descriptor %d (%ld/%ld)", fd, count, ret); return false; }
+    return true;
 }
 
 #endif // PROTOCOL_SENDER_H

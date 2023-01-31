@@ -74,4 +74,8 @@ inline json findNodeByPath(json tree, std::string path) {
     return node; 
 }
 
+inline std::string getRoot(json tree) {
+    return tree["path"].back() != '/' ? tree["path"].dump() + "/" : tree["path"].dump();
+}
+
 #endif // JSON_TREE_H
