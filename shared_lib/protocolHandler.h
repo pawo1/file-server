@@ -94,12 +94,12 @@ inline bool ProtocolHandler::read(int fd) {
         if(trans_size == 0) {
             if(const_head >= ( message_header ) ) {
                 msg_type = (const_buffer+sizeof(uint32_t))[0];
+                msg_timestamp = *(int64_t)(const_buffer+sizeof(uint32_t)+sizeof(char));
                 if( msg_type == 'B' && findNullTerminator(const_buffer, CLIENT_BUFFER)) {
                     trans_size = *(uint32_t*)const_buffer;
                     trans_size -= message_header;
                     std::string str(const_buffer+message_header);
-                    // TODO: zapisywanie plików do folderu roota.
-                    filename = str;
+                    filename = getRoot(*json_ptr) + str;
                     read_bytes += filename.length() + 1;
                     _createStream();
                     _moveBuffer(msg_type, message_header + filename.length() + 1);

@@ -60,9 +60,9 @@ class Client : public Handler {
 private:
     int _fd;
     ProtocolHandlerServer _protocolHandler;
-
+    ProtocolSenderServer _protocolSender;
 public:
-    Client(int fd) : _fd(fd), _protocolHandler(&fileSystemTree, fd, root) {
+    Client(int fd) : _fd(fd), _protocolHandler(&fileSystemTree, fd, root), _protocolSender(fd, root) {
         epoll_event ee {EPOLLIN|EPOLLRDHUP, {.ptr=this}};
         epoll_ctl(epollFd, EPOLL_CTL_ADD, _fd, &ee);
     }
@@ -83,8 +83,8 @@ public:
             remove();
         }
     }
-    void write(char * buffer, int count){
-        if(count != ::write(_fd, buffer, count))
+    void write(std::string name, char operation){
+        if(!_protocolSender.send_message(name, operation))
             remove();
         
     }

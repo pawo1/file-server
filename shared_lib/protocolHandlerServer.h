@@ -15,7 +15,7 @@ protected:
 };
 
 inline ProtocolHandlerServer::ProtocolHandlerServer(json *json_ptr, int sock, std::string root) : ProtocolHandler(json_ptr), _protocolSender(sock, root) {
-    roto_path = root;
+    root_path = root;
 }
 
 inline void ProtocolHandlerServer::_completeTransmission() {
@@ -72,7 +72,7 @@ inline void ProtocolHandlerServer::_completeTransmission() {
         case 'B':
             {
                 file.close();
-
+                fs::rename(filename, filename.substr(0, filename.find_last_of('.')));
                 break;
             }
         default:
