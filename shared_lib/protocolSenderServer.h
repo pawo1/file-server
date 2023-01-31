@@ -16,13 +16,14 @@ inline ProtocolSenderServer::ProtocolSenderServer(int sock, std::string root) : 
 
 inline void ProtocolSenderServer::send_message(std::string name, char operation){
 
-    const size_t ui32_size = sizeof(uint32_t);
+   const size_t ui32_size = sizeof(uint32_t);
     const size_t char_size = sizeof(char);
 
     long length = 0;
 
     int fd = -1;
     std::string json_content = "";
+    bool abort = false;
 
     ssize_t bufsize = 1024;
     char buffer[bufsize];
@@ -57,23 +58,33 @@ inline void ProtocolSenderServer::send_message(std::string name, char operation)
             offset += length;
             size_to_send = offset;
             // send in the next message
+            name = this->root + "/" + name;
             fd = get_file_descriptor(name, &length); // opens fd
+            if(fd == -1){
+                abort = true;
+                break;
+            }
             offset += length;
             break;
     }
 
-    // add message size
-    memcpy(buffer, (char*)&offset, ui32_size);
+    if (!abort){
+        // add message size
+        memcpy(buffer, (char*)&offset, ui32_size);
 
-    // send message without file content
-    writeData(this->sock, buffer, size_to_send);
+        // send message without file content
+        writeData(this->sock, buffer, size_to_send);
 
-    // the next message is now
-    if(fd >= 0){
-        send_file_content(fd); // closes fd
+        // the next message is now
+        if(fd >= 0){
+            send_file_content(fd); // closes fd
+        }
+        else if(json_content.size() > 0){
+            send_string_content(json_content);
+        }
     }
-    else if(json_content.size() > 0){
-        send_string_content(json_content);
+    else {
+        printf("Wystąpił błąd. Nie wysłano wiadomości.\n");
     }
 }
 

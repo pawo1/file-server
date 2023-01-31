@@ -191,7 +191,3 @@ void sendToAll(int fd, char * buffer, int count){
             client->write(buffer, count);
     }
 }
-
-void sendToClient() {
-
-}
