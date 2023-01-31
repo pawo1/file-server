@@ -58,7 +58,7 @@ inline bool ProtocolSenderServer::send_message(std::string name, char operation)
             offset += length;
             size_to_send = offset;
             // send in the next message
-            name = this->root + "/" + name;
+            name = this->root + name;
             fd = get_file_descriptor(name, &length); // opens fd
             if(fd == -1){
                 abort = true;

@@ -5,6 +5,9 @@
 #include "../shared_lib/protocolSenderServer.h"
 
 class ProtocolHandlerServer : public ProtocolHandler {
+private:
+    char *trans_buffer;
+
 public:
     ProtocolHandlerServer(json *json_ptr, int sock, std::string root);
 
@@ -17,6 +20,10 @@ protected:
 
 inline ProtocolHandlerServer::ProtocolHandlerServer(json *json_ptr, int sock, std::string root) : ProtocolHandler(json_ptr), _protocolSender(sock, root) {
     root_path = root;
+    read_bytes = 0;
+    trans_size = 0;
+    const_head = 0;
+    trans_buffer = nullptr;
 }
 
 inline void ProtocolHandlerServer::_completeTransmission() {

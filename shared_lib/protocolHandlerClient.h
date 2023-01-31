@@ -5,6 +5,9 @@
 #include "protocolSender.h"
 
 class ProtocolHandlerClient : public ProtocolHandler{
+private:
+    char *trans_buffer;
+
 public:
     ProtocolHandlerClient(int sock, std::string root);
 protected:
