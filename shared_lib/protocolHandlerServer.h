@@ -26,11 +26,10 @@ inline void ProtocolHandlerServer::_completeTransmission() {
                 filename = str;
                 fs::path filepath(root_path);
                 filepath /= filename;
-                int64_t timestamp = *(int64_t*)(trans_buffer + filename.length());
                 json node = findNodeByPath(*fileSystemTree, filename);
                 if(node.empty()) {
                     std::cout << "No file server site cannot delete\n";
-                } else if((int64_t)node["write_time"] < timestamp) {
+                } else if((int64_t)node["write_time"] < msg_timestamp) {
                     std::cout << "Deleting file\n";
                     fs::remove(filepath);
                 } else {
@@ -45,18 +44,20 @@ inline void ProtocolHandlerServer::_completeTransmission() {
                 filename = str;
                 fs::path filepath(root_path);
                 filepath /= filename;
-                int64_t timestamp = *(int64_t*)(trans_buffer + filename.length());
                 std::ostringstream ss;
-                ss << timestamp;
+                ss << msg_timestamp;
                 fs::path newfilepath(root_path);
                 newfilepath /= filename+"_"+ss.str();
+                std::string MD5sum = (trans_buffer + filename.length());
 
                 json node = findNodeByPath(*fileSystemTree, filename);
                 if(node.empty()) {
                     std::cout << "Accepting new file\n";
                      _protocolSender.send_message(filename, 'A');
-                } else if((int64_t)node["write_time"] > timestamp) {
+                } else if((int64_t)node["write_time"] > msg_timestamp) {
                     std::cout << "Discarding older change\n";
+                } else if(node["MD5"] == MD5sum) {
+                    std::cout << "Same MD5 discarding...\n";
                 } else {
                     std::cout << "Renaming old version\n";
                     fs::rename(filepath, newfilepath);
@@ -72,7 +73,8 @@ inline void ProtocolHandlerServer::_completeTransmission() {
         case 'B':
             {
                 file.close();
-                fs::rename(filename, filename.substr(0, filename.find_last_of('.')));
+                fs::remove(filename);
+                fs::rename(filename+".fstmp", filename);
                 break;
             }
         default:
