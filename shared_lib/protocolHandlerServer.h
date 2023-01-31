@@ -83,10 +83,12 @@ inline void ProtocolHandlerServer::_completeTransmission() {
                 json patch = json::diff(source, target);
                 json patched_tree = source.patch(patch);
                 for(auto it: patched_tree["children"]) {
+                    std::string name = it["path"].dump();
+                    name.erase(std::remove(name.begin(), name.end(), '\"'), name.end());
                     if(findNodeByPath(target, it["path"]).empty()) 
-                        _protocolSender.send_message(it["path"].dump(), 'A');
+                        _protocolSender.send_message(name, 'A');
                     else
-                        _protocolSender.send_message(it["path"].dump(), 'B');
+                        _protocolSender.send_message(name, 'B');
                 }
                 break;
             }
