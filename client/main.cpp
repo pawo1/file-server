@@ -189,7 +189,7 @@ private:
     static const long const_buflen = 1024 * (const_event_size + 16);
 
     int add_notify_dir(std::string name){
-        uint32_t flags = /*IN_MOVED_FROM|IN_MOVED_TO|*/ IN_CLOSE_WRITE|IN_DELETE|IN_CREATE;
+        uint32_t flags = /*IN_MOVED_FROM|IN_MOVED_TO|IN_CREATE|*/ IN_CLOSE_WRITE|IN_DELETE;
         int wd = inotify_add_watch(this->fd, name.c_str(), flags);
         if (wd < 0) {
             perror ("inotify_add_watch");
@@ -207,7 +207,7 @@ private:
         return wd;
     }
     std::string get_inotify_fullpath(int wd, std::string name){
-        return this->inotify_dirs[wd] + "/" + name;
+        return name; //this->inotify_dirs[wd] + "/" + name;
     }
     void init_notify(std::string root){
         this->fd = inotify_init();
