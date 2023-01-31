@@ -98,6 +98,7 @@ inline bool ProtocolHandler::read(int fd) {
                     trans_size = *(uint32_t*)const_buffer;
                     trans_size -= message_header;
                     std::string str(const_buffer+message_header);
+                    // TODO: zapisywanie plików do folderu roota.
                     filename = str;
                     read_bytes += filename.length() + 1;
                     _createStream();

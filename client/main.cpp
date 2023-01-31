@@ -53,7 +53,7 @@ struct Handler {
 
 struct InotifyHandler :  Handler {
 public:
-    InotifyHandler(int sock, std::string root) : proto_sender(sock, root) {
+    InotifyHandler(int sock, std::string root) : root(root), proto_sender(sock, root){
         init_notify(root);
     }
     ~InotifyHandler(){
@@ -180,6 +180,8 @@ private:
     uint32_t cookie = 0;
     int last_wd = 0;
 
+    std::string root;
+
     std::map<int, std::string> inotify_dirs;
     ProtocolSender proto_sender;
 
@@ -193,10 +195,14 @@ private:
             perror ("inotify_add_watch");
             return 1;
         }
+
+        printf("added inotify wd: %d to %s\n", wd, name.c_str());
+        if (name == root){
+            name = ".";
+        }
         
         this->inotify_dirs[wd] = name;
         
-        printf("added inotify wd: %d to %s\n", wd, name.c_str());
         
         return wd;
     }
