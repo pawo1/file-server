@@ -18,7 +18,7 @@ protected:
     std::fstream file;
     char msg_type;
     int64_t msg_timestamp;
-    void _moveBuffer(char type, uint32_t offset=0);
+    void _moveBuffer(char type, uint32_t offset=0, uint32_t msg_size=0);
     void _createStream();
     virtual void _completeTransmission();
 
@@ -49,7 +49,7 @@ inline void ProtocolHandler::free() {
     trans_buffer = nullptr;
 }
 
-inline void ProtocolHandler::_moveBuffer(char type, uint32_t offset) {
+inline void ProtocolHandler::_moveBuffer(char type, uint32_t offset, uint32_t msg_size) {
     if(const_head == 0) return;
         
     int len = const_head-offset;
@@ -63,7 +63,7 @@ inline void ProtocolHandler::_moveBuffer(char type, uint32_t offset) {
     read_bytes += (uint32_t)len;
     const_head = 0;
 
-    if(read_bytes == trans_size)
+    if(read_bytes >= trans_size)
         _completeTransmission();
 }
 

@@ -182,12 +182,4 @@ void ctrl_c(int){
     exit(0);
 }
 
-void sendToAll(int fd, char * buffer, int count){
-    auto it = clients.begin();
-    while(it!=clients.end()){
-        Client * client = *it;
-        it++;
-        if(client->fd()!=fd)
-            client->write(buffer, count);
-    }
-}
+
