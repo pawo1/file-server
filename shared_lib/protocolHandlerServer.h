@@ -15,7 +15,7 @@ protected:
 };
 
 inline ProtocolHandlerServer::ProtocolHandlerServer(json *json_ptr, int sock, std::string root) : ProtocolHandler(json_ptr), _protocolSender(sock, root) {
-    roto_path = root;
+    root_path = root;
 }
 
 inline void ProtocolHandlerServer::_completeTransmission() {
