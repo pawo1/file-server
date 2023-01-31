@@ -68,6 +68,7 @@ inline int ProtocolSender::get_file_descriptor(std::string name, long *size){
     int fd = open(name.c_str(), O_RDONLY|O_NOATIME);
     if (fd < 0){
         perror("Otwieranie pliku");
+        printf("Plik: %s", name.c_str());
         return fd;
     }
 
@@ -173,7 +174,7 @@ inline bool ProtocolSender::send_message(std::string name, char operation){
             offset += length;
             size_to_send = offset;
             // send in the next message
-            name = this->root + "/" + name;
+            //name = this->root + "/" + name;
             fd = get_file_descriptor(name, &length); // opens fd
             if(fd == -1){
                 abort = true;
