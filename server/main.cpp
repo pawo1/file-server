@@ -133,8 +133,7 @@ int main()
     }
     
     fileSystemTree = parseDirectoryToTree(root);
-    std::string test = fileSystemTree.dump(2);
-    std::cout << test << std::endl;
+
     
     servFd = socket(AF_INET, SOCK_STREAM, 0);
     if(servFd == -1) error(1, errno, "socket failed");

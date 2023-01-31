@@ -76,6 +76,18 @@ inline void ProtocolHandlerServer::_completeTransmission() {
             }
         case 'T':
             {
+                std::string str(trans_buffer);
+                json target = json::parse(str);
+                json source = *fileSystemTree;
+
+                json patch = json::diff(source, target);
+                json patched_tree = source.patch(patch);
+                for(auto it: patched_tree["children"]) {
+                    if(findNodeByPath(target, it["path"]).empty()) 
+                        _protocolSender.send_message(it["path"].dump(), 'A');
+                    else
+                        _protocolSender.send_message(it["path"].dump(), 'B');
+                }
                 break;
             }
         case 'B':
@@ -83,7 +95,6 @@ inline void ProtocolHandlerServer::_completeTransmission() {
                 file.close();
                 fs::remove(filename);
                 fs::rename(filename+".fstmp", filename);
-
                 break;
             }
         default:
