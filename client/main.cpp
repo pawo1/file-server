@@ -281,7 +281,7 @@ int main()
     // initial sync
     ProtocolSender proto_sender = ProtocolSender(sock, root);
     printf("Wysyłanie wiadomości do serwera...\n");
-    proto_sender.send_message("", 'T');
+    //proto_sender.send_message("", 'T');
     //proto_sender.send_message("/home/pmarc/test/123456.txt", 'B'); // for testing
     
 

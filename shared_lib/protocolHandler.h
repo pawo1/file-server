@@ -102,10 +102,11 @@ inline bool ProtocolHandler::read(int fd) {
                     trans_size = *(uint32_t*)const_buffer;
                     trans_size -= message_header;
                     std::string str(const_buffer+message_header);
+                    int filenamesize = str.length() + 1;
                     filename = getRoot(*fileSystemTree) + str;
                     read_bytes += filename.length() + 1;
                     _createStream();
-                    _moveBuffer(msg_type, message_header + filename.length() + 1);
+                    _moveBuffer(msg_type, message_header + filenamesize);
 
                 } else if(msg_type != 'B') {
                     trans_size = *(uint32_t*)const_buffer;
