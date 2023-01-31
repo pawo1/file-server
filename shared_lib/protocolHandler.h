@@ -70,6 +70,7 @@ inline void ProtocolHandler::_moveBuffer(char type, uint32_t offset, uint32_t ms
 }
 
 inline void ProtocolHandler::_createStream() {
+    filename.erase(std::remove(filename.begin(), filename.end(), '\"'), filename.end());
     file.open( (filename+".fstmp"), std::ios::out | std::ios::binary | std::ios::trunc);
         if(!file.good()) std::cout << "Could not create file" << std::endl;
     }
