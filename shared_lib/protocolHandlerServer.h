@@ -102,6 +102,7 @@ inline void ProtocolHandlerServer::_completeTransmission() {
                 file.close();
                 fs::remove(filename);
                 fs::rename(filename+".fstmp", filename);
+                *fileSystemTreePtr = parseDirectoryToTree(root_path);
                 (*sendToAllPointer)(sock, orgfilename, 'B');
                 break;
             }
