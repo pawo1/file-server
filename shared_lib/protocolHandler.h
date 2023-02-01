@@ -83,6 +83,7 @@ inline bool ProtocolHandler::read(int fd) {
 
 
     ssize_t count;
+    uint32_t message_header = (uint32_t)(sizeof(uint32_t) + sizeof(char) + sizeof(int64_t)); 
     
 
     count = ::read(fd, 
@@ -94,7 +95,6 @@ inline bool ProtocolHandler::read(int fd) {
     if(count > 0) {
         
         const_head += (uint32_t)count;
-        uint32_t message_header = (uint32_t)(sizeof(uint32_t) + sizeof(char) + sizeof(int64_t));
         if(trans_size == 0) {
             if(const_head >= ( message_header ) ) {
                 msg_type = (const_buffer+sizeof(uint32_t))[0];

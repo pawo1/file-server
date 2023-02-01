@@ -52,7 +52,7 @@ inline void ProtocolHandlerClient::_completeTransmission() {
         default:
             {  
             std::cout << "Corrupted data from client " << std::endl;
-            return;
+            break;
             }
     }
     if(trans_buffer != nullptr)
