@@ -84,12 +84,15 @@ inline bool ProtocolHandler::read(int fd) {
 
     ssize_t count;
     uint32_t message_header = (uint32_t)(sizeof(uint32_t) + sizeof(char) + sizeof(int64_t)); 
-    
+    uint32_t theoretical_size = message_header - const_head;
+    if(trans_size == 0 && const_head >= message_header) {
+        theoretical_size = *(uint32_t*)const_buffer;
+    }
 
     count = ::read(fd, 
                 const_buffer+const_head, 
                 std::min(CLIENT_BUFFER-const_head, 
-                        trans_size > 0 ? (trans_size-(read_bytes+const_head)) : CLIENT_BUFFER
+                        trans_size > 0 ? (trans_size-(read_bytes+const_head)) : theoretical_size
                         )
                 );
     if(count > 0) {
