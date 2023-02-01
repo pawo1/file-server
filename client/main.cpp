@@ -207,7 +207,8 @@ private:
         
         return wd;
     }
-    std::string get_inotify_fullpath(int wd, std::string name){
+    // std::string get_inotify_fullpath(int wd, std::string name){
+    std::string get_inotify_fullpath(std::string name){
         return name; //this->inotify_dirs[wd] + "/" + name;
     }
     void init_notify(std::string root){
@@ -221,13 +222,13 @@ private:
         // TODO: add subnodes
     }  
     void operation_create(std::string name, int wd) {
-        this->proto_sender.send_message(get_inotify_fullpath(wd, name), 'U');
+        this->proto_sender.send_message(get_inotify_fullpath(name), 'U');
         // send_to_server(get_inotify_fullpath(wd, name), 'B');   // TODO: ONLY FOR TESTING! 
-        std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath(wd, name) << std::endl;
+        std::cout << "\t=> ("<<wd<<")CREATE: " << get_inotify_fullpath( name) << std::endl;
     }
     void operation_delete(std::string name, int wd) {
-        this->proto_sender.send_message(get_inotify_fullpath(wd, name), 'D');
-        std::cout << "\t=> ("<<wd<<")DELETE: " << get_inotify_fullpath(wd, name) << std::endl;
+        this->proto_sender.send_message(get_inotify_fullpath( name), 'D');
+        std::cout << "\t=> ("<<wd<<")DELETE: " << get_inotify_fullpath(name) << std::endl;
     }
     // void operation_rename(std::string name1, std::string name2, int wd) {
     //     // todo

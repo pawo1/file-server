@@ -119,15 +119,4 @@ inline void ProtocolHandlerServer::_completeTransmission() {
     trans_size = 0;
 }
 
-
-void _sendToAll(int fd, std::string name, char operation) {
-/*    auto it = clients.begin();
-    while(it!=clients.end()){
-        Client * client = *it;
-        it++;
-        if(client->fd()!=fd)
-            client->write(name, operation);
-    } */
-}
-
 #endif // PROTOCOL_HANDLER_SERVER_h
