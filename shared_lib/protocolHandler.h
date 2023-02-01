@@ -21,7 +21,7 @@ protected:
     std::fstream file;
     char msg_type;
     int64_t msg_timestamp;
-    void _moveBuffer(char type, uint32_t offset=0, uint32_t msg_size=0);
+    void _moveBuffer(char type, uint32_t offset=0);
     void _createStream();
     virtual void _completeTransmission();
 
@@ -38,6 +38,7 @@ inline ProtocolHandler::ProtocolHandler(json *json_ptr) : fileSystemTreePtr(json
     trans_size = 0;
     const_head = 0;
     trans_buffer = nullptr;
+    memset(const_buffer, ' ', CLIENT_BUFFER);
 }
 
 inline ProtocolHandler::~ProtocolHandler() {
@@ -52,7 +53,7 @@ inline void ProtocolHandler::free() {
     trans_buffer = nullptr;
 }
 
-inline void ProtocolHandler::_moveBuffer(char type, uint32_t offset, uint32_t msg_size) {
+inline void ProtocolHandler::_moveBuffer(char type, uint32_t offset) {
     if(const_head == 0) return;
         
     int len = const_head-offset;
@@ -87,6 +88,7 @@ inline bool ProtocolHandler::read(int fd) {
     uint32_t theoretical_size = message_header - const_head;
     if(trans_size == 0 && const_head >= message_header) {
         theoretical_size = *(uint32_t*)const_buffer;
+        theoretical_size -= const_head;
     }
 
     count = ::read(fd, 
@@ -102,7 +104,7 @@ inline bool ProtocolHandler::read(int fd) {
             if(const_head >= ( message_header ) ) {
                 msg_type = (const_buffer+sizeof(uint32_t))[0];
                 msg_timestamp = *(int64_t*)(const_buffer+sizeof(uint32_t)+sizeof(char));
-                if( msg_type == 'B' && findNullTerminator(const_buffer, CLIENT_BUFFER)) {
+                if( msg_type == 'B' && findNullTerminator(const_buffer+message_header, CLIENT_BUFFER-message_header)) {
                     trans_size = *(uint32_t*)const_buffer;
                     trans_size -= message_header;
                     std::string str(const_buffer+message_header);

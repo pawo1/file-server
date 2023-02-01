@@ -102,6 +102,7 @@ inline void ProtocolHandlerServer::_completeTransmission() {
                 file.close();
                 fs::remove(filename);
                 fs::rename(filename+".fstmp", filename);
+                *fileSystemTreePtr = parseDirectoryToTree(root_path);
                 (*sendToAllPointer)(sock, orgfilename, 'B');
                 break;
             }
@@ -116,17 +117,6 @@ inline void ProtocolHandlerServer::_completeTransmission() {
     trans_buffer = nullptr;
     read_bytes = 0;
     trans_size = 0;
-}
-
-
-void _sendToAll(int fd, std::string name, char operation) {
-/*    auto it = clients.begin();
-    while(it!=clients.end()){
-        Client * client = *it;
-        it++;
-        if(client->fd()!=fd)
-            client->write(name, operation);
-    } */
 }
 
 #endif // PROTOCOL_HANDLER_SERVER_h

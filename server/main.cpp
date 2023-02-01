@@ -145,7 +145,8 @@ int main()
     
     setReuseAddr(servFd);
     
-    sockaddr_in serverAddr{.sin_family=AF_INET, .sin_port=htons((short)port), .sin_addr={INADDR_ANY}};
+    sockaddr_in serverAddr{.sin_family=AF_INET, .sin_port=htons((short)port), .sin_addr={INADDR_ANY},
+    .sin_zero={0}};
     int res = bind(servFd, (sockaddr*) &serverAddr, sizeof(serverAddr));
     if(res) error(1, errno, "bind failed");
     
