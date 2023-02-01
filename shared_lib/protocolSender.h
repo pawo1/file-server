@@ -68,7 +68,7 @@ inline int ProtocolSender::get_file_descriptor(std::string name, long *size){
     int fd = open(name.c_str(), O_RDONLY|O_NOATIME);
     if (fd < 0){
         perror("Otwieranie pliku");
-        printf("Plik: %s", name.c_str());
+        printf("Plik: %s \n", name.c_str());
         return fd;
     }
 

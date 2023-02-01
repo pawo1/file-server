@@ -8,7 +8,7 @@ class ProtocolHandler {
 
 protected:
     char *trans_buffer;
-    json *fileSystemTree;
+    json *fileSystemTreePtr;
     
     char const_buffer[CLIENT_BUFFER];
     uint32_t const_head;
@@ -16,6 +16,7 @@ protected:
     uint32_t trans_size;
     uint32_t read_bytes;
 
+    std::string orgfilename;
     std::string filename;
     std::fstream file;
     char msg_type;
@@ -32,7 +33,7 @@ public:
 
 };
 
-inline ProtocolHandler::ProtocolHandler(json *json_ptr) : fileSystemTree(json_ptr) {
+inline ProtocolHandler::ProtocolHandler(json *json_ptr) : fileSystemTreePtr(json_ptr) {
     read_bytes = 0;
     trans_size = 0;
     const_head = 0;
@@ -103,7 +104,8 @@ inline bool ProtocolHandler::read(int fd) {
                     trans_size -= message_header;
                     std::string str(const_buffer+message_header);
                     int filenamesize = str.length() + 1;
-                    filename = getRoot(*fileSystemTree) + str;
+                    orgfilename = str;
+                    filename = getRoot(*fileSystemTreePtr) + str;
                     read_bytes += filename.length() + 1;
                     _createStream();
                     _moveBuffer(msg_type, message_header + filenamesize);

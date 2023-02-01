@@ -9,13 +9,14 @@ class ProtocolHandlerClient : public ProtocolHandler{
 //     char *trans_buffer;
 
 public:
-    ProtocolHandlerClient(int sock, std::string root);
+    ProtocolHandlerClient(int sock, std::string root, json* jsonTree);
 protected:
     ProtocolSender proto_sender;
     virtual void _completeTransmission() override;
 };
 
-inline ProtocolHandlerClient::ProtocolHandlerClient(int sock, std::string root) : ProtocolHandler((json*)nullptr), proto_sender(sock, root) {
+inline ProtocolHandlerClient::ProtocolHandlerClient(int sock, std::string root, json* jsonTree) 
+                                    : ProtocolHandler(jsonTree), proto_sender(sock, root) {
     read_bytes = 0;
     trans_size = 0;
     const_head = 0;
@@ -43,7 +44,7 @@ inline void ProtocolHandlerClient::_completeTransmission() {
         case 'B':
             {
                 printf("operacja B\n");
-                fs::remove(filename);
+                //fs::remove(filename);
                 fs::rename(filename+".fstmp", filename);
                 file.close();
                 break;

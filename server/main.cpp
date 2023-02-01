@@ -50,6 +50,7 @@ uint16_t readPort(char * txt);
 
 void setReuseAddr(int sock);
 
+void sendToAll(int fd, std::string name, char operation) ;
 
 struct Handler {
     virtual ~Handler(){}
@@ -65,6 +66,7 @@ public:
     Client(int fd) : _fd(fd), _protocolHandler(&fileSystemTree, fd, root), _protocolSender(fd, root) {
         epoll_event ee {EPOLLIN|EPOLLRDHUP, {.ptr=this}};
         epoll_ctl(epollFd, EPOLL_CTL_ADD, _fd, &ee);
+        _protocolHandler.sendToAllPointer = &sendToAll;
     }
     virtual ~Client(){
         _protocolHandler.free();
@@ -179,6 +181,17 @@ void ctrl_c(int){
     close(servFd);
     printf("Closing server\n");
     exit(0);
+}
+
+void sendToAll(int fd, std::string name, char operation) {
+    std::cout << "SEND TO ALL WITH: fd: "<<fd<<" name: "<<name<<", op: "<<operation << std::endl;
+    auto it = clients.begin();
+    while(it!=clients.end()){
+        Client * client = *it;
+        it++;
+        if(client->fd()!=fd)
+            client->write(name, operation);
+    }
 }
 
 

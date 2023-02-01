@@ -36,6 +36,7 @@
 
 std::string root;
 int sock;
+json jsonTree;
 
 //ProtocolSender *proto_sender;
 //ProtocolHandlerClient *proto_handler;
@@ -239,7 +240,7 @@ private:
     ProtocolHandlerClient proto_handler;
     int sock;
 public:
-    NetworkHandler(int sock, std::string root) : proto_handler(sock, root), sock(sock) {}
+    NetworkHandler(int sock, std::string root) : proto_handler(sock, root, &jsonTree), sock(sock) {}
 
     virtual int handleEvent(uint32_t ee) override {
         bool result = false;
@@ -274,6 +275,9 @@ int main()
     root = configuration["path"];
     std::string host = configuration["host"];
     std::string port = configuration["port"];
+
+    jsonTree = parseDirectoryToTree(root);
+
 
     // try connect
     sock = connect_to_address(host.c_str(), port.c_str());

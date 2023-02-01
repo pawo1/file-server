@@ -58,7 +58,7 @@ inline bool ProtocolSenderServer::send_message(std::string name, char operation)
             offset += length;
             size_to_send = offset;
             // send in the next message
-            name = this->root + name;
+            name = this->root + "/" + name;
             fd = get_file_descriptor(name, &length); // opens fd
             if(fd == -1){
                 abort = true;
@@ -73,11 +73,13 @@ inline bool ProtocolSenderServer::send_message(std::string name, char operation)
         memcpy(buffer, (char*)&offset, ui32_size);
 
         // send message without file content
+        std::cout << "Sending " << operation << " request" << std::endl;
         if(!writeData(this->sock, buffer, size_to_send))
             return false;
 
         // the next message is now
         if(fd >= 0){
+            std::cout << "Sending file contents..." << std::endl;
             send_file_content(fd); // closes fd
         }
         else if(json_content.size() > 0){

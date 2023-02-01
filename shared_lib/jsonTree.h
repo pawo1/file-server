@@ -6,6 +6,7 @@
 #include <fstream>
 #include <filesystem>
 #include <sstream>
+#include <iostream>
 
 #include "../shared_lib/utils.h"
 
@@ -75,7 +76,8 @@ inline json findNodeByPath(json tree, std::string path) {
 }
 
 inline std::string getRoot(json tree) {
-    return tree["path"].back() != '/' ? tree["path"].dump() + "/" : tree["path"].dump();
+    std::cout << tree["path"].dump() << std::endl;
+    return tree["path"].dump().back() != '/' ? tree["path"].dump() + "/" : tree["path"].dump();
 }
 
 
